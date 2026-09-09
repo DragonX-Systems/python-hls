@@ -1,0 +1,64 @@
+:root {
+  --bg: #0a0b0d;
+  --bg-card: #14171c;
+  --border: #292e38;
+  --border-strong: #3a424e;
+  --text: #f0f3f7;
+  --text-muted: #9ba4b0;
+  --accent: #f2a900;
+  --success: #56d696;
+  --mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  --sans: "Outfit", Inter, system-ui, sans-serif;
+  color-scheme: dark;
+}
+* {
+  box-sizing: border-box;
+}
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 90px;
+}
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition:
+    color 0.15s,
+    background-color 0.15s,
+    border-color 0.15s;
+}
+a:hover {
+  color: #ffbe45;
+}
+a:focus-visible {
+  outline: 2px solid #ffcf68;
+  outline-offset: 3px;
+}
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+  transform: translateY(-200%);
+  padding: 0.5rem 0.75rem;
+  background: var(--accent);
+  color: #111;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+#root {
+  min-height: 100vh;
+}

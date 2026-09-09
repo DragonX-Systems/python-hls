@@ -1,0 +1,54 @@
+"""
+Python-HLS: A High-Level Synthesis tool for Python
+
+Where the source code IS the hardware.
+"""
+
+from .hls import HLS
+from .netlist import Netlist, NetlistModule
+
+# Constraint system for strict compilation
+from .constraints import (
+    # Latency constraints
+    latency,
+    LatencyConstraint,
+    LatencyViolationError,
+    # Semantic validation
+    SemanticValidator,
+    SemanticViolationError,
+    # Equivalence checking
+    EquivalenceChecker,
+    EquivalenceResult,
+)
+
+# Apply patch to fix area calculation in NetlistModule
+# Store the original add_resource method
+original_add_resource = NetlistModule.add_resource
+
+# Define a new add_resource method that updates the area
+def patched_add_resource(self, resource):
+    # Call the original method first
+    original_add_resource(self, resource)
+    
+    # Update the module's area when a resource is added
+    self.area = sum(r.area for r in self.resources)
+    self.power = sum(r.power for r in self.resources)
+
+# Replace the original method with our patched version
+NetlistModule.add_resource = patched_add_resource
+
+__version__ = "0.1.0"
+
+__all__ = [
+    'HLS',
+    'Netlist',
+    'NetlistModule',
+    # Constraints
+    'latency',
+    'LatencyConstraint',
+    'LatencyViolationError',
+    'SemanticValidator',
+    'SemanticViolationError',
+    'EquivalenceChecker',
+    'EquivalenceResult',
+] 

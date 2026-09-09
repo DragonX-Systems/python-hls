@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "python_hls"
+version = "0.1.0"
+description = "High-Level Synthesis tool that compiles Python to hardware netlists. Built for trading firms."
+readme = "README.md"
+license = {text = "PolyForm Noncommercial 1.0.0"}
+requires-python = ">=3.9"
+authors = [{name = "Python-HLS Contributors"}]
+keywords = ["hls", "hardware", "synthesis", "fpga", "verilog", "vhdl", "trading"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+[project.optional-dependencies]
+verification = []  # Verilator is system dependency, not pip-installable
+ml = ["torch>=2.0"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["python_hls*"]

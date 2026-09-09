@@ -1,0 +1,14 @@
+{
+  "tech_node": 45,
+  "resources": [
+    {
+      "name": "Adder_32bit",
+      "area": 180.0,
+      "latency": 1,
+      "energy_per_op": 0.8,
+      "leakage_power": 8.0,
+      "tech_node": 45,
+      "frequency": 1000.0
+    }
+  ]
+}

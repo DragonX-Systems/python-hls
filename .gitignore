@@ -1,0 +1,17 @@
+*.v
+*.json
+*.log
+*.pyc
+*.pyo
+*.pyd
+*.png
+*.dot
+*.pdf
+*.html
+# Landing page source is tracked
+!landing/index.html
+!landing/package.json
+!landing/package-lock.json
+!landing/vercel.json
+*.gv
+*.txt
