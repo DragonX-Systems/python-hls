@@ -15,3 +15,5 @@
 !landing/vercel.json
 *.gv
 *.txt
+*.egg-info/
+__pycache__/

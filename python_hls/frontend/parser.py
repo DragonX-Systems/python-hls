@@ -62,6 +62,12 @@ class PythonParser:
         Returns:
             AST of the Python source, filtered to include only relevant functions
         """
+        # Check if source contains NumPy constructs; if so, lower them first
+        from .numpy import NumPyFrontend
+        if NumPyFrontend.is_numpy_source(source):
+            frontend = NumPyFrontend()
+            source = frontend.parse_and_lower_source(source, entry_function=entry_function)
+
         # Store source lines for pragma extraction
         self.source_lines = source.splitlines()
         
@@ -105,6 +111,13 @@ class PythonParser:
         Returns:
             Function definition AST node
         """
+        from .numpy import NumPyFrontend
+        if NumPyFrontend.is_numpy_function(func):
+            frontend = NumPyFrontend()
+            function_def = frontend.lower_callable(func)
+            self._validate_ast(function_def)
+            return function_def
+
         source = inspect.getsource(func)
         module = ast.parse(source)
         

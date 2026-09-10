@@ -37,6 +37,18 @@ def patched_add_resource(self, resource):
 # Replace the original method with our patched version
 NetlistModule.add_resource = patched_add_resource
 
+# NumPy frontend for bounded array kernels
+from .frontend.numpy import (
+    numpy_kernel,
+    ArraySpec,
+    KernelSpec,
+    NumPyFrontend,
+    NumPyFrontendError,
+    NumPyShapeError,
+    NumPyDTypeError,
+    NumPyUnsupportedOperationError,
+)
+
 __version__ = "0.1.0"
 
 __all__ = [
@@ -51,4 +63,13 @@ __all__ = [
     'SemanticViolationError',
     'EquivalenceChecker',
     'EquivalenceResult',
+    # NumPy frontend
+    'numpy_kernel',
+    'ArraySpec',
+    'KernelSpec',
+    'NumPyFrontend',
+    'NumPyFrontendError',
+    'NumPyShapeError',
+    'NumPyDTypeError',
+    'NumPyUnsupportedOperationError',
 ] 
