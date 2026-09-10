@@ -37,6 +37,7 @@ The experimental PyTorch FX frontend imports a model graph and preserves operati
 - Run fast, technology-library-driven design-space exploration (DSE) using supplied resource-characterization numbers
 - Visualize datapaths, scheduled datapaths, control flow, and netlist microarchitecture
 - Generate early estimates for area, power, energy, and latency
+- Prototype statically shaped JAX kernels and lower them to inspectable IR and synthesizable Verilog RTL
 
 ## HLS Landscape
 
@@ -180,6 +181,48 @@ print(graph.to_dict())
 ```
 
 The current importer recognizes elementwise arithmetic, matrix multiplication, linear layers, and ReLU as candidate operations for later lowering. Quantization, tensor-memory mapping, convolution lowering, control generation, and qualified RTL emission remain future work.
+
+### JAX Frontend for Statically Shaped Kernels (Issue #1)
+
+Python-HLS provides a prototype JAX frontend for defining, tracing, inspecting, and synthesizing statically shaped array kernels into hardware netlists and Verilog RTL.
+
+See [Architecture Decision Record (ADR): JAX Frontend](docs/ADR_JAX_FRONTEND.md) for full architecture rationale, IR boundaries, limitations, and comparison with NumPy and PyTorch frontends.
+
+#### Installation
+
+```bash
+pip install -e '.[jax]'
+```
+
+#### Kernel Definition & Tracing
+
+Kernels require explicit static shapes and integer or floating-point dtypes via the `@jax_kernel` decorator:
+
+```python
+import jax.numpy as jnp
+from python_hls import jax_kernel, trace_jax_kernel, HLS
+
+@jax_kernel(
+    shapes={"a": (16,), "b": (16,)},
+    dtypes={"a": "int32", "b": "int32"}
+)
+def vector_add(a, b):
+    return a + b
+
+# Trace to inspectable hardware graph
+graph = trace_jax_kernel(vector_add)
+print(graph.summary())
+
+# Compile directly to synthesizable Verilog RTL
+hls = HLS(tech_node=45)
+netlist, logs = hls.compile_jax(vector_add, target="verilog", output_file="vector_add.v")
+```
+
+#### Runnable Examples
+
+- [Vector Addition (1D)](examples/jax_vector_add.py)
+- [Matrix Multiplication (2D @ 2D)](examples/jax_matmul.py)
+- [Multi-Stage Activation Pipeline (Dense + Bias + ReLU)](examples/jax_relu_pipeline.py)
 
 ### Demo Kernels (Trading Firms)
 

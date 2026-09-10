@@ -22,6 +22,7 @@ classifiers = [
 [project.optional-dependencies]
 verification = []  # Verilator is system dependency, not pip-installable
 ml = ["torch>=2.0"]
+jax = ["jax>=0.4.0", "jaxlib>=0.4.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]

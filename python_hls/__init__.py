@@ -37,6 +37,22 @@ def patched_add_resource(self, resource):
 # Replace the original method with our patched version
 NetlistModule.add_resource = patched_add_resource
 
+# JAX frontend for static lowerable kernels
+from .frontend.jax import (
+    jax_kernel,
+    JAXArraySpec,
+    JAXKernelSpec,
+    JaxprGraph,
+    JaxprNode,
+    JaxprVariable,
+    trace_jax_kernel,
+    jaxpr_to_ir,
+    JAXFrontendError,
+    JAXShapeError,
+    JAXDTypeError,
+    JAXUnsupportedPrimitiveError,
+)
+
 __version__ = "0.1.0"
 
 __all__ = [
@@ -51,4 +67,17 @@ __all__ = [
     'SemanticViolationError',
     'EquivalenceChecker',
     'EquivalenceResult',
+    # JAX frontend
+    'jax_kernel',
+    'JAXArraySpec',
+    'JAXKernelSpec',
+    'JaxprGraph',
+    'JaxprNode',
+    'JaxprVariable',
+    'trace_jax_kernel',
+    'jaxpr_to_ir',
+    'JAXFrontendError',
+    'JAXShapeError',
+    'JAXDTypeError',
+    'JAXUnsupportedPrimitiveError',
 ] 
