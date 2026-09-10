@@ -104,36 +104,30 @@ Analyze for different technology nodes:
 python -m python_hls.cli analyze examples/gcd.py --tech-nodes 45,28,16,7
 ```
 
-### Fast DSE with External Technology Libraries
+### Fast DSE with Characterized Foundry Technology Libraries
 
-The `analyze` command compiles a kernel across technology nodes, produces an area/power/latency comparison, and can use supplied resource-characterization numbers instead of relying only on the built-in illustrative models. Compiler decisions and their resulting datapath, schedule, control-flow, and netlist views remain inspectable.
+Python-HLS supports traceable ingestion of characterized technology data for early design-space exploration (DSE). You can pass characterized Synopsys Liberty (`.lib`) files, normalized characterization JSON libraries, or legacy JSON overlays to `compile` and `analyze`.
 
-Pass a JSON library to `compile` or `analyze`:
+Ingest a foundry Liberty file and export a normalized characterization library:
+
+```bash
+python -m python_hls.cli ingest-liberty examples/technology_libraries/reference_45nm.lib \
+  --output examples/technology_libraries/reference_45nm_characterized.json \
+  --tech-node 45 \
+  --corner typical
+```
+
+Run technology node analysis with traceable library data, PVT corners, and provenance:
 
 ```bash
 python -m python_hls.cli analyze examples/gcd.py \
   --tech-nodes 45,28,16,7 \
-  --tech-library examples/technology_libraries/example_45nm.json
+  --tech-library examples/technology_libraries/reference_45nm.lib
 ```
 
-Each entry overrides the corresponding resource model at its technology node. Unspecified resources use the built-in model; when an exact node is absent, the model is scaled as an early estimate.
+Compiler decisions and their resulting datapath, schedule, control-flow, and netlist views remain inspectable. Reports track library provenance (SHA256), operating voltage, temperature, PVT corner, drive strength, and characterization assumptions.
 
-```json
-{
-  "tech_node": 45,
-  "resources": [{
-    "name": "Adder_32bit",
-    "area": 180.0,
-    "latency": 1,
-    "energy_per_op": 0.8,
-    "leakage_power": 8.0,
-    "tech_node": 45,
-    "frequency": 1000.0
-  }]
-}
-```
-
-`area` is in µm², `energy_per_op` in pJ, `leakage_power` in µW, and `frequency` in MHz. These models support rapid architectural comparison; characterize and calibrate them against synthesis and physical-implementation reports before making implementation decisions.
+See [Characterized Foundry Technology Libraries](docs/TECHNOLOGY_LIBRARIES.md) for full mapping specifications, supported standard cells, unsupported constructs, and normalized JSON schema definitions.
 
 ### Python API
 

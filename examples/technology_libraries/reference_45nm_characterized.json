@@ -1,0 +1,400 @@
+{
+  "schema_version": "1.0",
+  "library_name": "reference_45nm",
+  "tech_node": 45,
+  "operating_condition": {
+    "name": "typical",
+    "process": 1.0,
+    "voltage": 1.1,
+    "temperature": 25.0,
+    "corner": "typical"
+  },
+  "units": {
+    "time": "ns",
+    "voltage": "V",
+    "power": "uW",
+    "energy": "pJ",
+    "area": "um2",
+    "capacitance": "fF"
+  },
+  "assumptions": {
+    "clock_frequency_mhz": 1000.0,
+    "nominal_load_ff": 10.0,
+    "switching_activity": 0.1,
+    "drive_strength": "X1",
+    "is_signoff": false,
+    "notes": "Synthesized resource models mapped from characterized Liberty cell data."
+  },
+  "cell_mappings": {
+    "FA": "FA_X1",
+    "HA": "HA_X1",
+    "DFF": "DFF_X1",
+    "MUX2": "MUX2_X1",
+    "XOR2": "XOR2_X1",
+    "XNOR2": "XNOR2_X1",
+    "AND2": "AND2_X1",
+    "OR2": "OR2_X1",
+    "NAND2": "NAND2_X1",
+    "INV": "INV_X1"
+  },
+  "unsupported_cells": [
+    "LEVEL_SHIFTER_X1: Level shifter (multi-voltage domain logic unsupported in early DSE)"
+  ],
+  "provenance": {
+    "source_file": "examples/technology_libraries/reference_45nm.lib",
+    "source_format": "liberty",
+    "sha256": "ea13d5f1fd0b79483d930ff295b43ac45a6d1e20a191133c9c12323c6535551e",
+    "ingested_at": "2026-09-10T13:44:29.117433+00:00",
+    "tool": "python-hls-characterization-ingester",
+    "description": "Ingested from reference_45nm (cmos)"
+  },
+  "resources": [
+    {
+      "name": "AGU_32bit",
+      "area": 178.75,
+      "latency": 1,
+      "energy_per_op": 0.832,
+      "leakage_power": 0.739,
+      "tech_node": 45,
+      "frequency": 850.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "formula": "1.2 * Adder_32bit"
+      }
+    },
+    {
+      "name": "ALU_32bit",
+      "area": 319.2,
+      "latency": 1,
+      "energy_per_op": 0.96,
+      "leakage_power": 1.352,
+      "tech_node": 45,
+      "frequency": 850.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "formula": "Adder_32bit + BitOp_32bit + 2 * MUX_32bit"
+      }
+    },
+    {
+      "name": "Adder_32bit",
+      "area": 148.96,
+      "latency": 1,
+      "energy_per_op": 0.768,
+      "leakage_power": 0.616,
+      "tech_node": 45,
+      "frequency": 1000.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "derived_from": [
+          "FA_X1",
+          "XOR2_X1"
+        ],
+        "formula": "32 * area(FA) * 1.25 prefix tree"
+      }
+    },
+    {
+      "name": "BitOp_32bit",
+      "area": 51.07,
+      "latency": 1,
+      "energy_per_op": 0.192,
+      "leakage_power": 0.218,
+      "tech_node": 45,
+      "frequency": 1200.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "derived_from": [
+          "XOR2_X1"
+        ],
+        "formula": "32 * area(XOR2)"
+      }
+    },
+    {
+      "name": "CROSSBAR_32bit",
+      "area": 953.34,
+      "latency": 1,
+      "energy_per_op": 4.096,
+      "leakage_power": 4.147,
+      "tech_node": 45,
+      "frequency": 900.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "formula": "16 * MUX_32bit"
+      }
+    },
+    {
+      "name": "Cache_16KB",
+      "area": 150000.0,
+      "latency": 2,
+      "energy_per_op": 45.0,
+      "leakage_power": 1200.0,
+      "tech_node": 45,
+      "frequency": 800.0,
+      "provenance": {
+        "source": "characterized_memory_model",
+        "formula": "SRAM bitcell model scaled to 45nm"
+      }
+    },
+    {
+      "name": "Comparator_32bit",
+      "area": 84.06,
+      "latency": 1,
+      "energy_per_op": 0.1536,
+      "leakage_power": 0.36,
+      "tech_node": 45,
+      "frequency": 1100.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "formula": "32 * area(XNOR2) + 31 * area(AND2)"
+      }
+    },
+    {
+      "name": "Divider_32bit",
+      "area": 6032.88,
+      "latency": 10,
+      "energy_per_op": 67.032,
+      "leakage_power": 24.948,
+      "tech_node": 45,
+      "frequency": 500.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "formula": "1.8 * Multiplier_32bit array"
+      }
+    },
+    {
+      "name": "FIFO_32bit",
+      "area": 3355.77,
+      "latency": 1,
+      "energy_per_op": 3.0,
+      "leakage_power": 13.046,
+      "tech_node": 45,
+      "frequency": 1000.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "formula": "32 * Register_32bit * 0.7"
+      }
+    },
+    {
+      "name": "FSM_Controller",
+      "area": 110.66,
+      "latency": 1,
+      "energy_per_op": 0.32,
+      "leakage_power": 0.471,
+      "tech_node": 45,
+      "frequency": 1000.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "formula": "16 * DFF + 40 * logic gates"
+      }
+    },
+    {
+      "name": "MUX_32bit",
+      "area": 59.58,
+      "latency": 0,
+      "energy_per_op": 0.256,
+      "leakage_power": 0.259,
+      "tech_node": 45,
+      "frequency": 1500.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "derived_from": [
+          "MUX2_X1"
+        ],
+        "formula": "32 * area(MUX2)"
+      }
+    },
+    {
+      "name": "Memory_1KB",
+      "area": 10000.0,
+      "latency": 1,
+      "energy_per_op": 5.0,
+      "leakage_power": 200.0,
+      "tech_node": 45,
+      "frequency": 900.0,
+      "provenance": {
+        "source": "characterized_memory_model",
+        "formula": "SRAM bitcell model scaled to 45nm"
+      }
+    },
+    {
+      "name": "Memory_4KB",
+      "area": 38000.0,
+      "latency": 1,
+      "energy_per_op": 15.0,
+      "leakage_power": 500.0,
+      "tech_node": 45,
+      "frequency": 900.0,
+      "provenance": {
+        "source": "characterized_memory_model",
+        "formula": "SRAM bitcell model scaled to 45nm"
+      }
+    },
+    {
+      "name": "Memory_Controller",
+      "area": 289.41,
+      "latency": 1,
+      "energy_per_op": 2.5,
+      "leakage_power": 25.0,
+      "tech_node": 45,
+      "frequency": 750.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "formula": "AGU + FSM + interface"
+      }
+    },
+    {
+      "name": "Multiplier_32bit",
+      "area": 3351.6,
+      "latency": 2,
+      "energy_per_op": 3.6,
+      "leakage_power": 13.86,
+      "tech_node": 45,
+      "frequency": 750.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "derived_from": [
+          "FA_X1"
+        ],
+        "formula": "900 * area(FA) Booth-Wallace tree"
+      }
+    },
+    {
+      "name": "Register_1bit",
+      "area": 4.26,
+      "latency": 1,
+      "energy_per_op": 0.01,
+      "leakage_power": 0.018,
+      "tech_node": 45,
+      "frequency": 1000.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "derived_from": [
+          "DFF_X1"
+        ],
+        "formula": "1 * area(DFF)"
+      }
+    },
+    {
+      "name": "Register_32bit",
+      "area": 149.81,
+      "latency": 1,
+      "energy_per_op": 0.32,
+      "leakage_power": 0.582,
+      "tech_node": 45,
+      "frequency": 1000.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "derived_from": [
+          "DFF_X1"
+        ],
+        "formula": "32 * area(DFF) * 1.10"
+      }
+    },
+    {
+      "name": "Register_64bit",
+      "area": 305.07,
+      "latency": 1,
+      "energy_per_op": 0.64,
+      "leakage_power": 1.165,
+      "tech_node": 45,
+      "frequency": 1000.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "derived_from": [
+          "DFF_X1"
+        ],
+        "formula": "64 * area(DFF) * 1.12"
+      }
+    },
+    {
+      "name": "RelationalOp_32bit",
+      "area": 160.03,
+      "latency": 1,
+      "energy_per_op": 0.576,
+      "leakage_power": 8.001,
+      "tech_node": 45,
+      "frequency": 1050.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "formula": "0.8 * Subtractor_32bit"
+      }
+    },
+    {
+      "name": "Scratchpad_16KB",
+      "area": 100000.0,
+      "latency": 2,
+      "energy_per_op": 35.0,
+      "leakage_power": 800.0,
+      "tech_node": 45,
+      "frequency": 800.0,
+      "provenance": {
+        "source": "characterized_memory_model",
+        "formula": "SRAM bitcell model scaled to 45nm"
+      }
+    },
+    {
+      "name": "Scratchpad_1KB",
+      "area": 8000.0,
+      "latency": 1,
+      "energy_per_op": 4.0,
+      "leakage_power": 150.0,
+      "tech_node": 45,
+      "frequency": 900.0,
+      "provenance": {
+        "source": "characterized_memory_model",
+        "formula": "SRAM bitcell model scaled to 45nm"
+      }
+    },
+    {
+      "name": "Scratchpad_4KB",
+      "area": 30000.0,
+      "latency": 1,
+      "energy_per_op": 12.0,
+      "leakage_power": 400.0,
+      "tech_node": 45,
+      "frequency": 900.0,
+      "provenance": {
+        "source": "characterized_memory_model",
+        "formula": "SRAM bitcell model scaled to 45nm"
+      }
+    },
+    {
+      "name": "Scratchpad_64KB",
+      "area": 380000.0,
+      "latency": 3,
+      "energy_per_op": 120.0,
+      "leakage_power": 2400.0,
+      "tech_node": 45,
+      "frequency": 800.0,
+      "provenance": {
+        "source": "characterized_memory_model",
+        "formula": "SRAM bitcell model scaled to 45nm"
+      }
+    },
+    {
+      "name": "Shifter_32bit",
+      "area": 297.92,
+      "latency": 1,
+      "energy_per_op": 0.64,
+      "leakage_power": 1.296,
+      "tech_node": 45,
+      "frequency": 1000.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "formula": "160 * area(MUX2) 5-stage barrel shifter"
+      }
+    },
+    {
+      "name": "Subtractor_32bit",
+      "area": 200.03,
+      "latency": 1,
+      "energy_per_op": 0.832,
+      "leakage_power": 0.834,
+      "tech_node": 45,
+      "frequency": 950.0,
+      "provenance": {
+        "source": "characterized_liberty",
+        "formula": "Adder_32bit + 32 * area(XOR2)"
+      }
+    }
+  ]
+}

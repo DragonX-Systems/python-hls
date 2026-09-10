@@ -1021,6 +1021,10 @@ class HLS:
         else:
             report['allocated_resources'] = {}
         
+        # Add technology metadata and provenance
+        if hasattr(self, 'tech_library') and self.tech_library:
+            report['technology_metadata'] = self.tech_library.get_metadata_summary()
+        
         return report
     
     def set_tech_node(self, tech_node: int) -> None:
@@ -1135,6 +1139,7 @@ class HLS:
             "latency_ns": latency_ns,
             "clock_frequency_mhz": clock_frequency_mhz,
             "technology_node": self.tech_node,
+            "technology_metadata": self.tech_library.get_metadata_summary() if hasattr(self, 'tech_library') and self.tech_library else {},
         }
         
         # Log complete metrics for debugging
