@@ -308,10 +308,17 @@ class PythonExecutor:
         Returns:
             Value with simulated RTL bit-width behavior (unsigned representation)
         """
-        if not isinstance(value, int):
-            return value  # Only simulate for integers
-        
-        # Simulate overflow/underflow by masking to bit width
-        # Return unsigned representation to match Verilator C++ interface
-        mask = (1 << bitwidth) - 1  # e.g., 0xFFFFFFFF for 32-bit
-        return value & mask 
+        if isinstance(value, int):
+            # Simulate overflow/underflow by masking to bit width
+            # Return unsigned representation to match Verilator C++ interface
+            mask = (1 << bitwidth) - 1  # e.g., 0xFFFFFFFF for 32-bit
+            return value & mask
+
+        if isinstance(value, (list, tuple)):
+            converted = [self._simulate_rtl_bitwidth(v, bitwidth) for v in value]
+            return tuple(converted) if isinstance(value, tuple) else converted
+
+        if isinstance(value, dict):
+            return {k: self._simulate_rtl_bitwidth(v, bitwidth) for k, v in value.items()}
+
+        return value 
