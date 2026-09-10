@@ -110,7 +110,34 @@ class HLS:
         self.netlist_operations = None
         self.netlist = None
         self.source_file = None
-    
+
+    def compile_torch(self, model: Any, example_inputs: Any = (), target: str = "verilog",
+                      output_file: Optional[str] = None, embed_weights: bool = False, **kwargs: Any) -> Any:
+        """
+        Compile a PyTorch module to a hardware netlist using PyTorch FX qualified lowering.
+        
+        Args:
+            model: A torch.nn.Module instance
+            example_inputs: Concrete example tensors for shape propagation
+            target: Target hardware description language ("verilog" or "vhdl")
+            output_file: Path to write generated RTL
+            embed_weights: Whether to embed weights as constant arrays or parameter ports
+            
+        Returns:
+            Tuple of (netlist, synthesis_logs)
+        """
+        from .frontend.torch_fx import compile_torch_model
+        return compile_torch_model(
+            model=model,
+            example_inputs=example_inputs,
+            target=target,
+            output_file=output_file,
+            opt_level=self.optimization_level,
+            tech_node=self.tech_node,
+            embed_weights=embed_weights,
+            **kwargs,
+        )
+
     def compile(self, source_file: str, target: str = "verilog", debug: bool = False, entry_function: Optional[str] = None, 
                 ppa_optimization: bool = False, ppa_objective: str = "area", output_file: Optional[str] = None) -> Any:
         """

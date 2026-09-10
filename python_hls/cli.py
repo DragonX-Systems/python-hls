@@ -423,5 +423,72 @@ def validate(source_file, strict):
         sys.exit(1)
 
 
+@main.command('compile-torch')
+@click.argument('source_file', type=click.Path(exists=True))
+@click.option('--model-var', '-m', type=str, default='model',
+              help='Name of model variable or factory function in source file.')
+@click.option('--input-shapes', '-s', type=str, required=True,
+              help='Semicolon-separated input tensor shapes, e.g. "1,4" or "4;4".')
+@click.option('--target', '-t', type=click.Choice(['verilog', 'vhdl']), default='verilog',
+              help='Target HDL.')
+@click.option('--output', '-o', type=click.Path(), default=None,
+              help='Output file path for generated RTL.')
+@click.option('--opt-level', '-O', type=click.IntRange(0, 3), default=1,
+              help='Optimization level (0-3).')
+@click.option('--tech-node', '-n', type=int, default=45,
+              help='Technology node in nm.')
+@click.option('--embed-weights/--no-embed-weights', default=False,
+              help='Embed weights as constants (ROM) or interface ports.')
+def compile_torch_cli(source_file, model_var, input_shapes, target, output, opt_level, tech_node, embed_weights):
+    """
+    Compile a PyTorch model to hardware using FX qualified lowering.
+    
+    Example:
+        python -m python_hls.cli compile-torch examples/pytorch_linear_relu.py --input-shapes "1,4" -o model.v
+    """
+    import importlib.util
+    import torch
+    from .frontend.torch_fx import compile_torch_model
+
+    try:
+        spec = importlib.util.spec_from_file_location("user_model_module", source_file)
+        if not spec or not spec.loader:
+            click.echo(f"Error: Could not load module from {source_file}", err=True)
+            sys.exit(1)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        if not hasattr(mod, model_var):
+            click.echo(f"Error: '{model_var}' not found in {source_file}", err=True)
+            sys.exit(1)
+
+        model_obj = getattr(mod, model_var)
+        model = model_obj() if callable(model_obj) and not isinstance(model_obj, torch.nn.Module) else model_obj
+
+        example_inputs = []
+        for shape_str in input_shapes.split(";"):
+            shape = tuple(int(x.strip()) for x in shape_str.split(",") if x.strip())
+            example_inputs.append(torch.zeros(shape))
+
+        click.echo(f"Tracing and lowering PyTorch model '{type(model).__name__}' with shapes {[tuple(t.shape) for t in example_inputs]}...")
+        result = compile_torch_model(
+            model=model,
+            example_inputs=example_inputs,
+            target=target,
+            output_file=output,
+            opt_level=opt_level,
+            tech_node=tech_node,
+            embed_weights=embed_weights,
+        )
+        click.echo(f"Compilation succeeded! Target: {target}, Tech Node: {tech_node}nm")
+        if output:
+            click.echo(f"RTL generated at: {output}")
+
+    except Exception as e:
+        click.echo(f"Error: {str(e)}", err=True)
+        sys.exit(1)
+
+
 if __name__ == '__main__':
     main()
+

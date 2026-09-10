@@ -15,3 +15,4 @@
 !landing/vercel.json
 *.gv
 *.txt
+*.egg-info/
