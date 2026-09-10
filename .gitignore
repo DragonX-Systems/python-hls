@@ -15,3 +15,9 @@
 !landing/vercel.json
 *.gv
 *.txt
+*.egg-info/
+
+# Benchmark configs, reports, and emitted RTL are tracked
+!benchmarks/configs/*.json
+!benchmarks/reports/*.json
+!benchmarks/reports/rtl/*.v

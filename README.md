@@ -104,6 +104,18 @@ Analyze for different technology nodes:
 python -m python_hls.cli analyze examples/gcd.py --tech-nodes 45,28,16,7
 ```
 
+Run representative ML, data-science, and finance workload benchmarks:
+
+```bash
+# Run quick compilation and reference equivalence across all workloads
+python -m python_hls.cli benchmark --domain all --tier quick
+
+# Run full multi-node PPA exploration (45nm, 28nm, 16nm, 7nm) and emit RTL
+python -m python_hls.cli benchmark --domain all --tier dse
+```
+
+See [BENCHMARKS.md](docs/BENCHMARKS.md) for detailed workload specifications, shapes, dtypes, hardware assumptions, and reproducible PPA results.
+
 ### Fast DSE with External Technology Libraries
 
 The `analyze` command compiles a kernel across technology nodes, produces an area/power/latency comparison, and can use supplied resource-characterization numbers instead of relying only on the built-in illustrative models. Compiler decisions and their resulting datapath, schedule, control-flow, and netlist views remain inspectable.

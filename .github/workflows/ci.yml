@@ -46,6 +46,7 @@ jobs:
                  tests/test_fft_hls.py \
                  tests/test_spmm_hls.py \
                  tests/test_tech_nodes.py \
+                 tests/test_benchmarks.py \
                  -v --tb=short --timeout=120
         env:
           PYTHONPATH: ${{ github.workspace }}
