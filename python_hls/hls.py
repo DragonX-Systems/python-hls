@@ -3,6 +3,7 @@ Main HLS compiler implementation.
 """
 
 import os
+from pathlib import Path
 import ast
 import logging
 from typing import Optional, Dict, Any, List, Union
@@ -2319,3 +2320,203 @@ class HLS:
             test_vectors=test_vectors,
             num_random_tests=num_random_tests,
         )
+
+    # -------------------------------------------------------------------------
+    # GPU-OpenLane Handoff and DSE Calibration Methods (#3)
+    # -------------------------------------------------------------------------
+
+    def create_flow_manifest(
+        self,
+        source_file: str,
+        liberty_file: str,
+        output_dir: str = "build/openlane_handoff",
+        sdc_file: Optional[str] = None,
+        top_module: Optional[str] = None,
+        pdk: str = "sky130A",
+        clock_period_ns: Optional[float] = None,
+        clock_name: str = "clk",
+        stage: str = "all",
+        dry_run: bool = False,
+    ):
+        """
+        Create a complete FlowManifest packaging RTL, SDC, Liberty library,
+        configuration, and early DSE estimates.
+        """
+        from .handoff.manifest import (
+            FlowManifest, DesignSpec, TechnologySpec, FlowConfig, DSEEstimateSpec
+        )
+        from .handoff.sdc import SDCGenerator, SDCConfig
+
+        out_path = Path(output_dir).resolve()
+        out_path.mkdir(parents=True, exist_ok=True)
+
+        # Ensure design is compiled to Verilog
+        top = top_module
+        if not top and self.netlist and self.netlist.modules:
+            top = list(self.netlist.modules.keys())[0]
+        if not top:
+            top = getattr(self, "entry_function", None) or Path(source_file).stem
+        rtl_file = str(out_path / f"{top}.v")
+        if not os.path.exists(rtl_file) or not self.netlist:
+            self.compile(source_file, target="verilog", output_file=rtl_file)
+
+        # Determine timing constraints
+        metrics = self.get_performance_metrics()
+        period = clock_period_ns or metrics.get("clock_period") or (1000.0 / metrics.get("clock_frequency_mhz", 100.0))
+        freq_mhz = 1000.0 / period if period > 0 else 100.0
+
+        # Generate SDC if not provided
+        actual_sdc_file = sdc_file
+        if not actual_sdc_file or not os.path.exists(actual_sdc_file):
+            actual_sdc_file = str(out_path / f"{top}.sdc")
+            sdc_gen = SDCGenerator(SDCConfig(clock_name=clock_name, clock_period_ns=period))
+            sdc_gen.write(
+                actual_sdc_file,
+                top_module=top,
+                clock_period_ns=period,
+                clock_name=clock_name,
+                verilog_file=rtl_file,
+            )
+
+        # Collect DSE estimates
+        dse_spec = DSEEstimateSpec(
+            total_area_um2=float(metrics.get("total_area", 0.0)),
+            total_power_mw=float(metrics.get("total_power", 0.0)),
+            dynamic_power_mw=float(metrics.get("dynamic_power", 0.0)),
+            leakage_power_mw=float(metrics.get("leakage_power", 0.0)),
+            latency_cycles=int(metrics.get("latency_cycles", 0)),
+            clock_period_ns=float(period),
+            clock_frequency_mhz=float(freq_mhz),
+            tech_node=int(self.tech_node),
+        )
+
+        design_spec = DesignSpec(
+            top_module=top,
+            rtl_files=[rtl_file],
+            sdc_file=str(Path(actual_sdc_file).resolve()),
+            source_file=str(Path(source_file).resolve()),
+            target_clock_period_ns=period,
+            target_clock_frequency_mhz=freq_mhz,
+        )
+
+        tech_spec = TechnologySpec(
+            pdk=pdk,
+            liberty_file=str(Path(liberty_file).resolve()),
+            corner="tt_025C_1v80",
+        )
+
+        flow_config = FlowConfig(
+            stage=stage,
+            output_dir=str(out_path),
+            dry_run=dry_run,
+        )
+
+        return FlowManifest(
+            design=design_spec,
+            technology=tech_spec,
+            configuration=flow_config,
+            dse_estimates=dse_spec,
+        )
+
+    def export_openlane_handoff(
+        self,
+        source_file: str,
+        liberty_file: str,
+        output_dir: str = "build/openlane_handoff",
+        **kwargs,
+    ) -> Dict[str, str]:
+        """
+        Export a complete, self-contained handoff bundle including manifest,
+        RTL, SDC, and standalone executable runner script.
+        """
+        from .handoff.runner import OpenLaneRunner
+
+        manifest = self.create_flow_manifest(
+            source_file=source_file,
+            liberty_file=liberty_file,
+            output_dir=output_dir,
+            **kwargs,
+        )
+        runner = OpenLaneRunner()
+        return runner.export_bundle(manifest, output_dir=output_dir)
+
+    def run_openlane_handoff(
+        self,
+        source_file: str,
+        liberty_file: str,
+        output_dir: str = "build/openlane_handoff",
+        openlane_root: Optional[str] = None,
+        mock_mode: bool = False,
+        timeout_s: int = 600,
+        **kwargs,
+    ):
+        """
+        Export handoff bundle and execute the GPU-OpenLane flow.
+        """
+        from .handoff.runner import OpenLaneRunner
+
+        manifest = self.create_flow_manifest(
+            source_file=source_file,
+            liberty_file=liberty_file,
+            output_dir=output_dir,
+            **kwargs,
+        )
+        runner = OpenLaneRunner(openlane_root=openlane_root)
+        return runner.run(manifest, output_dir=output_dir, timeout_s=timeout_s, mock_mode=mock_mode)
+
+    def calibrate_dse(
+        self,
+        source_file: str,
+        implementation_results_or_dir: str,
+        liberty_file: Optional[str] = None,
+        save_calibrated_tech_library: Optional[str] = None,
+        **kwargs,
+    ):
+        """
+        Calibrate Python-HLS early DSE estimates against physical implementation results.
+        """
+        from .handoff.ingestion import ReportIngestionEngine
+        from .handoff.calibration import DSECalibrator
+
+        if not self.netlist or self.source_file != source_file:
+            self.compile(source_file, target="verilog")
+
+        metrics = self.get_performance_metrics()
+        ingestion = ReportIngestionEngine()
+
+        if os.path.isfile(implementation_results_or_dir):
+            impl_report = ingestion.ingest_results_json(implementation_results_or_dir)
+        else:
+            impl_report = ingestion.ingest_directory(implementation_results_or_dir)
+
+        if impl_report.design in ("", "top") and source_file:
+            impl_report.design = Path(source_file).stem
+
+        calibrator = DSECalibrator()
+        calibration_report = calibrator.compare(metrics, impl_report)
+
+        if save_calibrated_tech_library:
+            base_overlay = {
+                "tech_node": self.tech_node,
+                "resources": [
+                    {
+                        "name": res.name,
+                        "area": res.area,
+                        "latency": res.latency,
+                        "energy_per_op": getattr(res, "energy_per_op", 0.5),
+                        "leakage_power": getattr(res, "leakage_power", 5.0),
+                        "tech_node": self.tech_node,
+                        "frequency": getattr(res, "frequency", 1000.0),
+                    }
+                    for res in (self.netlist_resources or [])
+                ],
+            }
+            calibrator.generate_calibrated_tech_library(
+                base_overlay,
+                calibration_report,
+                output_path=save_calibrated_tech_library,
+                node=self.tech_node,
+            )
+
+        return calibration_report
+

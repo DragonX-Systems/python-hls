@@ -423,5 +423,115 @@ def validate(source_file, strict):
         sys.exit(1)
 
 
+@main.command('openlane-handoff')
+@click.argument('source_file', type=click.Path(exists=True))
+@click.option('--lib', '-l', required=True, type=click.Path(exists=True),
+              help='Liberty timing library (.lib).')
+@click.option('--top', default=None,
+              help='Top-level module name (defaults to source function name).')
+@click.option('--sdc', default=None, type=click.Path(),
+              help='SDC constraints file (auto-generated if omitted).')
+@click.option('--output-dir', '-o', default='build/openlane_handoff',
+              help='Output directory for handoff bundle.')
+@click.option('--pdk', default='sky130A',
+              help='Target PDK (e.g. sky130A, gf180mcuD).')
+@click.option('--openlane-root', default=None,
+              help='Path to GPU-OpenLane repository (defaults to $GPU_OPENLANE_ROOT).')
+@click.option('--run/--no-run', default=False,
+              help='Execute the flow (requires GPU-OpenLane/tools) or export only.')
+@click.option('--calibrate/--no-calibrate', default=True,
+              help='Perform DSE calibration against implementation results when run.')
+@click.option('--mock/--no-mock', default=False,
+              help='Run in mock mode for reproducible offline verification.')
+@click.option('--save-calibrated-lib', default=None, type=click.Path(),
+              help='Save calibrated TechLibrary JSON overlay.')
+def openlane_handoff(source_file, lib, top, sdc, output_dir, pdk, openlane_root, run, calibrate, mock, save_calibrated_lib):
+    """
+    Automate GPU-OpenLane handoff: bundle RTL, SDC, Liberty library, and manifest.
+    Optionally execute the companion flow and calibrate DSE estimates.
+    """
+    hls = HLS()
+    try:
+        if not run and not mock:
+            bundle = hls.export_openlane_handoff(
+                source_file=source_file,
+                liberty_file=lib,
+                output_dir=output_dir,
+                top_module=top,
+                sdc_file=sdc,
+                pdk=pdk,
+            )
+            click.echo(f"Exported GPU-OpenLane handoff bundle to: {bundle['output_dir']}")
+            click.echo(f"  Manifest: {bundle['manifest_file']}")
+            click.echo(f"  Runner script: {bundle['script_file']}")
+            click.echo(f"  SDC: {bundle['sdc_file']}")
+            click.echo("\nTo run on your ASIC/GPU EDA environment:")
+            click.echo(f"  bash {bundle['script_file']}")
+        else:
+            click.echo(f"Running GPU-OpenLane handoff for {source_file} (mock={mock})...")
+            handoff_result = hls.run_openlane_handoff(
+                source_file=source_file,
+                liberty_file=lib,
+                output_dir=output_dir,
+                top_module=top,
+                sdc_file=sdc,
+                pdk=pdk,
+                openlane_root=openlane_root,
+                mock_mode=mock,
+            )
+            if not handoff_result.success:
+                click.echo(f"Handoff exited with code {handoff_result.return_code}")
+                if handoff_result.stderr:
+                    click.echo(f"Error: {handoff_result.stderr}")
+                sys.exit(1)
+
+            click.echo("Physical implementation finished successfully.")
+            if calibrate and handoff_result.results_json_path:
+                cal_report = hls.calibrate_dse(
+                    source_file=source_file,
+                    implementation_results_or_dir=handoff_result.results_json_path,
+                    save_calibrated_tech_library=save_calibrated_lib,
+                )
+                click.echo("\n" + cal_report.to_markdown())
+                if save_calibrated_lib:
+                    click.echo(f"Saved calibrated tech library to: {save_calibrated_lib}")
+
+    except Exception as e:
+        click.echo(f"Error during handoff: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@main.command('calibrate-dse')
+@click.argument('source_file', type=click.Path(exists=True))
+@click.option('--results', '-r', required=True, type=click.Path(exists=True),
+              help='Path to eda_results.json or directory containing implementation results.')
+@click.option('--save-calibrated-lib', default=None, type=click.Path(),
+              help='Output path for calibrated JSON technology library overlay.')
+@click.option('--report-output', default=None, type=click.Path(),
+              help='Output path to save markdown calibration report.')
+def calibrate_dse_cmd(source_file, results, save_calibrated_lib, report_output):
+    """
+    Calibrate early Python-HLS DSE estimates against physical implementation reports.
+    """
+    hls = HLS()
+    try:
+        cal_report = hls.calibrate_dse(
+            source_file=source_file,
+            implementation_results_or_dir=results,
+            save_calibrated_tech_library=save_calibrated_lib,
+        )
+        click.echo(cal_report.to_markdown())
+        if report_output:
+            with open(report_output, 'w', encoding='utf-8') as f:
+                f.write(cal_report.to_markdown())
+            click.echo(f"\nCalibration report saved to: {report_output}")
+        if save_calibrated_lib:
+            click.echo(f"Calibrated tech library saved to: {save_calibrated_lib}")
+    except Exception as e:
+        click.echo(f"Calibration error: {str(e)}", err=True)
+        sys.exit(1)
+
+
 if __name__ == '__main__':
     main()
+
