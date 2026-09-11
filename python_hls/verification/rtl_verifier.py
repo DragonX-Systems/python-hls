@@ -51,6 +51,31 @@ class RTLVerifier:
             return result.returncode == 0
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
+
+    def _get_warning_flags(self) -> List[str]:
+        """Detect supported warning flags based on Verilator version."""
+        flags = [
+            "-Wno-DECLFILENAME",
+            "-Wno-UNUSEDSIGNAL",
+            "-Wno-UNUSEDPARAM",
+        ]
+        try:
+            result = subprocess.run([self.verilator_path, "--version"],
+                                    capture_output=True, text=True, timeout=5)
+            match = re.search(r"Verilator\s+(\d+)\.(\d+)", result.stdout)
+            if match:
+                major, minor = int(match.group(1)), int(match.group(2))
+                if major > 5 or (major == 5 and minor >= 20):
+                    flags.extend(["-Wno-MULTIDRIVENPROC", "-Wno-MULTIDRIVEN", "-Wno-WIDTH", "-Wno-WIDTHTRUNC", "-Wno-WIDTHEXPAND"])
+                elif major == 5:
+                    flags.extend(["-Wno-MULTIDRIVEN", "-Wno-WIDTH", "-Wno-WIDTHTRUNC", "-Wno-WIDTHEXPAND"])
+                else:
+                    flags.extend(["-Wno-MULTIDRIVEN", "-Wno-WIDTH"])
+            else:
+                flags.extend(["-Wno-MULTIDRIVEN", "-Wno-WIDTH"])
+        except Exception:
+            flags.extend(["-Wno-MULTIDRIVEN", "-Wno-WIDTH"])
+        return flags
     
     def verify_hls_compilation(self, 
                              source_file: str, 
@@ -814,11 +839,7 @@ class RTLVerifier:
                     "--exe",
                     "--build",
                     "--no-timing",  # Disable timing for simple verification
-                    "-Wno-DECLFILENAME",  # Suppress filename/module name mismatch warnings
-                    "-Wno-UNUSEDSIGNAL",  # Suppress unused signal warnings
-                    "-Wno-UNUSEDPARAM",   # Suppress unused parameter warnings
-                    "-Wno-WIDTHTRUNC",    # Suppress width truncation warnings
-                    "-Wno-MULTIDRIVENPROC", # Suppress multi-driven proc warnings for legacy models
+                ] + self._get_warning_flags() + [
                     "-CFLAGS", "-std=c++14",  # Use C++14 standard
                     "-o", exe_name,
                     sim_verilog,
