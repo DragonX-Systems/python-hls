@@ -72,6 +72,31 @@ class RTLVerifier:
             return result.returncode == 0
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
+
+    def _get_warning_flags(self) -> List[str]:
+        """Detect supported warning flags based on Verilator version."""
+        flags = [
+            "-Wno-DECLFILENAME",
+            "-Wno-UNUSEDSIGNAL",
+            "-Wno-UNUSEDPARAM",
+        ]
+        try:
+            result = subprocess.run([self.verilator_path, "--version"],
+                                    capture_output=True, text=True, timeout=5)
+            match = re.search(r"Verilator\s+(\d+)\.(\d+)", result.stdout)
+            if match:
+                major, minor = int(match.group(1)), int(match.group(2))
+                if major > 5 or (major == 5 and minor >= 20):
+                    flags.extend(["-Wno-MULTIDRIVENPROC", "-Wno-MULTIDRIVEN", "-Wno-WIDTH", "-Wno-WIDTHTRUNC", "-Wno-WIDTHEXPAND"])
+                elif major == 5:
+                    flags.extend(["-Wno-MULTIDRIVEN", "-Wno-WIDTH", "-Wno-WIDTHTRUNC", "-Wno-WIDTHEXPAND"])
+                else:
+                    flags.extend(["-Wno-MULTIDRIVEN", "-Wno-WIDTH"])
+            else:
+                flags.extend(["-Wno-MULTIDRIVEN", "-Wno-WIDTH"])
+        except Exception:
+            flags.extend(["-Wno-MULTIDRIVEN", "-Wno-WIDTH"])
+        return flags
     
     @staticmethod
     def load_test_vectors(file_path: str) -> List[Dict[str, Any]]:
@@ -946,12 +971,7 @@ class RTLVerifier:
                     "--exe",
                     "--build",
                     "--no-timing",
-                    "-Wno-DECLFILENAME",
-                    "-Wno-UNUSEDSIGNAL",
-                    "-Wno-UNUSEDPARAM",
-                    "-Wno-MULTIDRIVENPROC",
-                    "-Wno-WIDTHEXPAND",
-                    "-Wno-WIDTHTRUNC",
+                ] + self._get_warning_flags() + [
                     "-CFLAGS", "-std=c++14",
                     "-o", exe_name,
                     sim_verilog,
