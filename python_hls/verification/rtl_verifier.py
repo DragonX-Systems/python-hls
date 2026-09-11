@@ -816,6 +816,9 @@ class RTLVerifier:
                     "--no-timing",  # Disable timing for simple verification
                     "-Wno-DECLFILENAME",  # Suppress filename/module name mismatch warnings
                     "-Wno-UNUSEDSIGNAL",  # Suppress unused signal warnings
+                    "-Wno-UNUSEDPARAM",   # Suppress unused parameter warnings
+                    "-Wno-WIDTHTRUNC",    # Suppress width truncation warnings
+                    "-Wno-MULTIDRIVENPROC", # Suppress multi-driven proc warnings for legacy models
                     "-CFLAGS", "-std=c++14",  # Use C++14 standard
                     "-o", exe_name,
                     sim_verilog,
