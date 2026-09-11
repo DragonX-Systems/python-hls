@@ -948,6 +948,7 @@ class RTLVerifier:
                     "--no-timing",
                     "-Wno-DECLFILENAME",
                     "-Wno-UNUSEDSIGNAL",
+                    "-Wno-UNUSEDPARAM",
                     "-Wno-MULTIDRIVENPROC",
                     "-Wno-WIDTHEXPAND",
                     "-Wno-WIDTHTRUNC",
