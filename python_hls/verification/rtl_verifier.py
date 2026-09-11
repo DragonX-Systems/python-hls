@@ -51,6 +51,16 @@ class RTLVerifier:
             return result.returncode == 0
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
+
+    def _get_warning_flags(self) -> List[str]:
+        """Return warning suppression flags supported across Verilator versions."""
+        return [
+            "-Wno-DECLFILENAME",
+            "-Wno-UNUSEDSIGNAL",
+            "-Wno-UNUSEDPARAM",
+            "-Wno-MULTIDRIVEN",
+            "-Wno-WIDTH",
+        ]
     
     def verify_hls_compilation(self, 
                              source_file: str, 
@@ -814,8 +824,7 @@ class RTLVerifier:
                     "--exe",
                     "--build",
                     "--no-timing",  # Disable timing for simple verification
-                    "-Wno-DECLFILENAME",  # Suppress filename/module name mismatch warnings
-                    "-Wno-UNUSEDSIGNAL",  # Suppress unused signal warnings
+                ] + self._get_warning_flags() + [
                     "-CFLAGS", "-std=c++14",  # Use C++14 standard
                     "-o", exe_name,
                     sim_verilog,
