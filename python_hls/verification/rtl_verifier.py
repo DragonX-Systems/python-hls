@@ -53,29 +53,14 @@ class RTLVerifier:
             return False
 
     def _get_warning_flags(self) -> List[str]:
-        """Detect supported warning flags based on Verilator version."""
-        flags = [
+        """Return warning suppression flags supported across Verilator versions."""
+        return [
             "-Wno-DECLFILENAME",
             "-Wno-UNUSEDSIGNAL",
             "-Wno-UNUSEDPARAM",
+            "-Wno-MULTIDRIVEN",
+            "-Wno-WIDTH",
         ]
-        try:
-            result = subprocess.run([self.verilator_path, "--version"],
-                                    capture_output=True, text=True, timeout=5)
-            match = re.search(r"Verilator\s+(\d+)\.(\d+)", result.stdout)
-            if match:
-                major, minor = int(match.group(1)), int(match.group(2))
-                if major > 5 or (major == 5 and minor >= 20):
-                    flags.extend(["-Wno-MULTIDRIVENPROC", "-Wno-MULTIDRIVEN", "-Wno-WIDTH", "-Wno-WIDTHTRUNC", "-Wno-WIDTHEXPAND"])
-                elif major == 5:
-                    flags.extend(["-Wno-MULTIDRIVEN", "-Wno-WIDTH", "-Wno-WIDTHTRUNC", "-Wno-WIDTHEXPAND"])
-                else:
-                    flags.extend(["-Wno-MULTIDRIVEN", "-Wno-WIDTH"])
-            else:
-                flags.extend(["-Wno-MULTIDRIVEN", "-Wno-WIDTH"])
-        except Exception:
-            flags.extend(["-Wno-MULTIDRIVEN", "-Wno-WIDTH"])
-        return flags
     
     def verify_hls_compilation(self, 
                              source_file: str, 
