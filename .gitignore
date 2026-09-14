@@ -4,6 +4,7 @@
 *.pyc
 *.pyo
 *.pyd
+*.egg-info/
 *.png
 *.dot
 *.pdf
@@ -13,6 +14,8 @@
 !landing/package.json
 !landing/package-lock.json
 !landing/vercel.json
+!benchmarks/configs/*.json
+!benchmarks/reports/rtl/*.v
 *.gv
 *.txt
 *.egg-info/
