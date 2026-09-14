@@ -74,14 +74,33 @@ class RTLVerifier:
             return False
 
     def _get_warning_flags(self) -> List[str]:
-        """Return warning suppression flags supported across Verilator versions."""
-        return [
+        """Return warning suppression flags dynamically supported by the installed Verilator."""
+        if hasattr(self, "_cached_warning_flags") and self._cached_warning_flags is not None:
+            return self._cached_warning_flags
+
+        candidate_flags = [
             "-Wno-DECLFILENAME",
             "-Wno-UNUSEDSIGNAL",
             "-Wno-UNUSEDPARAM",
             "-Wno-MULTIDRIVEN",
+            "-Wno-MULTIDRIVENPROC",
             "-Wno-WIDTH",
+            "-Wno-WIDTHTRUNC",
+            "-Wno-WIDTHEXPAND",
         ]
+        supported = []
+        for flag in candidate_flags:
+            try:
+                res = subprocess.run(
+                    [self.verilator_path, "--lint-only", flag, "/dev/null"],
+                    capture_output=True, text=True, timeout=2
+                )
+                if "Unknown warning specified" not in res.stderr:
+                    supported.append(flag)
+            except Exception:
+                pass
+        self._cached_warning_flags = supported
+        return self._cached_warning_flags
     
     @staticmethod
     def load_test_vectors(file_path: str) -> List[Dict[str, Any]]:
