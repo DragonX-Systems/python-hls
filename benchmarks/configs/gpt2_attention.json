@@ -1,0 +1,15 @@
+{
+  "name": "gpt2_attention",
+  "domain": "ml",
+  "description": "GPT-2 Transformer Scaled Dot-Product Multi-Head Attention Kernel",
+  "model": "GPT-2 (Small, 117M params)",
+  "precision": "INT8 / Fixed-Point 32-bit internal",
+  "target_frequency_mhz": 500,
+  "clock_period_ns": 2.0,
+  "latency_target_cycles": 10,
+  "supported_subsets": {
+    "shapes": "Fixed head dimension (d_k=64 or bounded slice), sequence length <= 1024",
+    "operations": "QKV Linear projection, Scaled Dot-Product Attention, Context accumulation",
+    "interfaces": "Standard clock/reset with valid/done handshakes or AXI4-Stream"
+  }
+}
