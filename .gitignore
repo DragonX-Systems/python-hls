@@ -22,6 +22,8 @@
 *.gv
 *.txt
 build/
+*.vcd
+artifacts/
 *.egg-info/
 
 # Benchmark configs, reports, and emitted RTL are tracked

@@ -16,10 +16,11 @@ class TestbenchGenerator:
     Generates Verilog testbenches for RTL verification with debugging capabilities.
     """
     
-    def __init__(self, enable_debug=False, enable_vcd_trace=False):
-        """Initialize the testbench generator with debugging options."""
+    def __init__(self, enable_debug: bool = False, enable_vcd_trace: bool = False, max_cycles: int = 1000):
+        """Initialize the testbench generator with debugging and cycle options."""
         self.enable_debug = enable_debug
         self.enable_vcd_trace = enable_vcd_trace
+        self.max_cycles = max_cycles
     
     def generate_testbench(self, 
                           module: Any, 
@@ -642,12 +643,13 @@ class TestbenchGenerator:
             # No outputs
             format_string = f'{{\\"test_inputs\\": \\"{test_inputs_str}\\", \\"outputs\\": {{}}}}'
             return f'"{format_string}"'
-    
     def generate_cpp_testbench(self, 
                               module: Any, 
                               port_info: Dict[str, Any], 
                               test_vectors: List[Dict[str, Any]], 
-                              testbench_name: str) -> str:
+                              testbench_name: str,
+                              max_cycles: Optional[int] = None,
+                              vcd_file: Optional[str] = None) -> str:
         """
         Generate a C++ testbench for Verilator.
         
@@ -655,19 +657,20 @@ class TestbenchGenerator:
             module: Module object from netlist
             port_info: Port information dictionary
             test_vectors: List of test vectors
-            testbench_name: Name for the testbench
+            testbench_name: Name for the testbench module
+            max_cycles: Optional maximum simulation cycles before timeout
+            vcd_file: Optional path for VCD waveform dump
             
         Returns:
             Path to generated C++ testbench file
         """
         logger.info(f"Generating C++ testbench for module {module.name}")
+        cycles = max_cycles if max_cycles is not None else self.max_cycles
         
-        # Generate C++ testbench code
         cpp_code = self._generate_cpp_testbench_code(
-            module, port_info, test_vectors, testbench_name
+            module, port_info, test_vectors, testbench_name, max_cycles=cycles, vcd_file=vcd_file
         )
         
-        # Save to temporary file
         with tempfile.NamedTemporaryFile(mode='w', suffix='.cpp', delete=False) as f:
             f.write(cpp_code)
             return f.name
@@ -676,9 +679,10 @@ class TestbenchGenerator:
                                     module: Any, 
                                     port_info: Dict[str, Any], 
                                     test_vectors: List[Dict[str, Any]], 
-                                    testbench_name: str) -> str:
+                                    testbench_name: str,
+                                    max_cycles: int = 1000,
+                                    vcd_file: Optional[str] = None) -> str:
         """Generate C++ testbench code for Verilator."""
-        # Debug logging
         logger.debug(f"Generating C++ testbench for {module.name}")
         logger.debug(f"Port info type: {type(port_info)}")
         logger.debug(f"Test vectors type: {type(test_vectors)}")
@@ -687,12 +691,15 @@ class TestbenchGenerator:
             logger.debug(f"First test vector type: {type(test_vectors[0])}")
             logger.debug(f"First test vector: {test_vectors[0]}")
         
+        use_vcd = bool(vcd_file or self.enable_vcd_trace)
         code = []
         
         # Headers
         code.append("#include <iostream>")
         code.append("#include <vector>")
         code.append("#include <verilated.h>")
+        if use_vcd:
+            code.append("#include <verilated_vcd_c.h>")
         code.append(f"#include \"V{module.name}.h\"")
         code.append("")
         
@@ -725,6 +732,13 @@ class TestbenchGenerator:
         
         # Create DUT
         code.append(f"    V{module.name}* dut = new V{module.name};")
+        if use_vcd:
+            actual_vcd = vcd_file if vcd_file else f"{testbench_name}.vcd"
+            code.append("    Verilated::traceEverOn(true);")
+            code.append("    VerilatedVcdC* tfp = new VerilatedVcdC;")
+            code.append("    dut->trace(tfp, 99);")
+            code.append(f"    tfp->open(\"{actual_vcd}\");")
+            code.append("    vluint64_t sim_time = 0;")
         code.append("")
         
         # Reset sequence
@@ -732,8 +746,12 @@ class TestbenchGenerator:
         code.append("    dut->rst_n = 0;")
         code.append("    dut->clk = 0;")
         code.append("    dut->eval();")
+        if use_vcd:
+            code.append("    if (tfp) tfp->dump(sim_time++);")
         code.append("    dut->clk = 1;")
         code.append("    dut->eval();")
+        if use_vcd:
+            code.append("    if (tfp) tfp->dump(sim_time++);")
         code.append("    dut->rst_n = 1;")
         code.append("")
         code.append("    int cycles_to_done = -1;")
@@ -746,20 +764,23 @@ class TestbenchGenerator:
             code.append(f"    // Test case {i+1}")
             
             # Reset DUT before each test to ensure clean state
-            if i > 0:  # Skip reset for first test (already done above)
+            if i > 0:
                 code.append("    // Reset DUT for clean state")
                 code.append("    dut->rst_n = 0;")
                 code.append("    dut->clk = 0;")
                 code.append("    dut->eval();")
+                if use_vcd:
+                    code.append("    if (tfp) tfp->dump(sim_time++);")
                 code.append("    dut->clk = 1;")
                 code.append("    dut->eval();")
+                if use_vcd:
+                    code.append("    if (tfp) tfp->dump(sim_time++);")
                 code.append("    dut->rst_n = 1;")
                 code.append("")
             
             # Set inputs - only set inputs that exist in the port info
             input_port_names = [port["name"] for port in port_info.get("input_ports", [])] if port_info else []
             
-            # Check if test_vector is a dictionary
             if not isinstance(test_vector, dict):
                 logger.error(f"Test vector {i} is not a dictionary: {test_vector} (type: {type(test_vector)})")
                 continue
@@ -770,20 +791,14 @@ class TestbenchGenerator:
                     array_info = array_signals[param_name]
                     if array_info["type"] == "input":
                         code.append(f"    // Write array data for {param_name}")
-                        
-                        # Handle empty arrays
                         if len(value) == 0:
-                            # Empty array - create empty vector
                             code.append(f"    std::vector<uint32_t> {param_name}_data_{i};")
-                        # Flatten 2D arrays for C++ vector initialization
                         elif isinstance(value[0], list):
-                            # 2D array - flatten it
                             flattened_values = []
                             for row in value:
                                 flattened_values.extend(row)
                             code.append(f"    std::vector<uint32_t> {param_name}_data_{i} = {{{', '.join(map(str, flattened_values))}}};")
                         else:
-                            # 1D array - use as is
                             code.append(f"    std::vector<uint32_t> {param_name}_data_{i} = {{{', '.join(map(str, value))}}};")
                         
                         if self.enable_debug:
@@ -797,14 +812,18 @@ class TestbenchGenerator:
                     if not isinstance(value, list):
                         code.append(f"    dut->{param_name} = {value};")
             
-            # Clock cycles - wait for computation to complete (track cycle count for cycle-accurate verification)
+            # Clock cycles - wait for computation to complete
             code.append("    // Run until computation completes")
             code.append("    cycles_to_done = -1;")
-            code.append("    for (int cycle = 0; cycle < 100; cycle++) {")
+            code.append(f"    for (int cycle = 0; cycle < {max_cycles}; cycle++) {{")
             code.append("        dut->clk = 0;")
             code.append("        dut->eval();")
+            if use_vcd:
+                code.append("        if (tfp) tfp->dump(sim_time++);")
             code.append("        dut->clk = 1;")
             code.append("        dut->eval();")
+            if use_vcd:
+                code.append("        if (tfp) tfp->dump(sim_time++);")
             code.append("        if (dut->done) {")
             code.append("            cycles_to_done = cycle + 1;")
             code.append("            break;")
@@ -812,21 +831,44 @@ class TestbenchGenerator:
             code.append("    }")
             code.append("")
             
-            # Output result (include cycles for cycle-accurate equivalence checking)
-            code.append("    // Output result")
-            # Use simple comma-separated format to avoid JSON issues
+            # Output result
             inputs_list = [f"{k}={v}" for k, v in test_vector.items() if k in input_port_names and not isinstance(v, list)]
             inputs_str = ','.join(inputs_list)
             
-            # Get the first output port name, or default to return_val
-            output_port_name = "return_val"
-            if port_info and "output_ports" in port_info and len(port_info["output_ports"]) > 0:
-                output_port_name = port_info["output_ports"][0]["name"]
-            
-            code.append(f'    std::cout << "RESULT: inputs={{{inputs_str}}},output=" << dut->{output_port_name} << ",cycles=" << cycles_to_done << std::endl;')
+            # Check for output arrays
+            output_arrays = [name for name, info in array_signals.items() if info.get("type") == "output"]
+            if output_arrays:
+                out_name = output_arrays[0]
+                code.append(f"    size_t out_len_{out_name} = dut->{out_name}_size;")
+                code.append(f"    if (out_len_{out_name} == 0) out_len_{out_name} = 8;")
+                code.append(f"    std::vector<uint32_t> out_data_{out_name} = read_array_{out_name}(dut, out_len_{out_name});")
+                code.append(f'    std::cout << "RESULT: inputs={{{inputs_str}}},output=[";')
+                code.append(f"    for (size_t k = 0; k < out_data_{out_name}.size(); ++k) {{")
+                code.append(f'        if (k > 0) std::cout << ",";')
+                code.append(f"        std::cout << out_data_{out_name}[k];")
+                code.append("    }")
+                code.append(f'    std::cout << "],cycles=" << cycles_to_done << std::endl;')
+            else:
+                data_output_ports = [
+                    p for p in port_info.get("output_ports", [])
+                    if p["name"] not in ["valid", "done"] and not self._is_array_interface_signal(p["name"])
+                ] if port_info else []
+                
+                if len(data_output_ports) > 1:
+                    ret_exprs = [f'\\"{p["name"]}\\": " << dut->{p["name"]}' for p in data_output_ports]
+                    ret_str = ' << ", " << '.join(ret_exprs)
+                    code.append(f'    std::cout << "RESULT: inputs={{{inputs_str}}},output={{{{" << {ret_str} << "}}}},cycles=" << cycles_to_done << std::endl;')
+                else:
+                    output_port_name = data_output_ports[0]["name"] if data_output_ports else "return_val"
+                    code.append(f'    std::cout << "RESULT: inputs={{{inputs_str}}},output=" << dut->{output_port_name} << ",cycles=" << cycles_to_done << std::endl;')
             code.append("")
         
         # Cleanup
+        if use_vcd:
+            code.append("    if (tfp) {")
+            code.append("        tfp->close();")
+            code.append("        delete tfp;")
+            code.append("    }")
         code.append("    delete dut;")
         code.append("    return 0;")
         code.append("}")

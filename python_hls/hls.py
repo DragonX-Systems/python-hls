@@ -2238,6 +2238,12 @@ class HLS:
     def verify_rtl(self, 
                    test_vectors: Optional[List[Dict[str, Any]]] = None,
                    num_random_tests: int = 100,
+                   seed: Optional[int] = 42,
+                   max_cycles: int = 1000,
+                   vcd: bool = False,
+                   artifact_dir: Optional[str] = None,
+                   strict: bool = False,
+                   timeout: int = 60,
                    save_report: bool = True,
                    save_testbenches: bool = False) -> Dict[str, Any]:
         """
@@ -2246,6 +2252,12 @@ class HLS:
         Args:
             test_vectors: Optional list of test vectors to use
             num_random_tests: Number of random test vectors to generate if none provided
+            seed: Random seed for deterministic test-vector generation
+            max_cycles: Maximum simulation cycles before timeout
+            vcd: Whether to dump VCD waveform trace
+            artifact_dir: Directory to preserve simulation artifacts (.v, .cpp, exe, vcd, logs)
+            strict: Whether to raise RTLMismatchError / RTLVerificationError on failures
+            timeout: Subprocess timeout in seconds
             save_report: Whether to save the verification report to a file
             save_testbenches: Whether to save the generated testbench code to files
             
@@ -2254,10 +2266,16 @@ class HLS:
         """
         if not self.source_file:
             logger.error("No source file available for verification")
+            if strict:
+                from .verification.exceptions import RTLVerificationError
+                raise RTLVerificationError("No source file available for verification")
             return {"error": "No source file available"}
         
         if not self.netlist:
             logger.error("No netlist available for verification. Run compilation first.")
+            if strict:
+                from .verification.exceptions import RTLVerificationError
+                raise RTLVerificationError("No netlist available for verification. Run compilation first.")
             return {"error": "No netlist available"}
         
         logger.info("Starting RTL verification")
@@ -2267,7 +2285,13 @@ class HLS:
             self.source_file, 
             self,
             test_vectors=test_vectors,
-            num_random_tests=num_random_tests
+            num_random_tests=num_random_tests,
+            seed=seed,
+            max_cycles=max_cycles,
+            vcd=vcd,
+            artifact_dir=artifact_dir,
+            strict=strict,
+            timeout=timeout
         )
         
         # Save report if requested

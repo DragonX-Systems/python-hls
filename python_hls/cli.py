@@ -608,6 +608,96 @@ def calibrate_dse_cmd(source_file, results, save_calibrated_lib, report_output):
         sys.exit(1)
 
 
+@main.command('verify-rtl')
+@click.argument('source_file', type=click.Path(exists=True))
+@click.option('--target', '-t', type=click.Choice(['verilog']), default='verilog',
+              help='Target RTL language for simulation (currently verilog).')
+@click.option('--test-vectors', type=click.Path(exists=True), default=None,
+              help='Path to JSON or YAML test vectors file.')
+@click.option('--num-tests', '-n', type=int, default=10,
+              help='Number of test vectors to generate if none provided.')
+@click.option('--seed', type=int, default=42,
+              help='Random seed for deterministic test-vector generation.')
+@click.option('--max-cycles', type=int, default=1000,
+              help='Maximum simulation cycles before timeout.')
+@click.option('--vcd/--no-vcd', default=False,
+              help='Enable VCD waveform dump.')
+@click.option('--output-dir', '-o', type=click.Path(), default=None,
+              help='Directory to preserve simulation artifacts (.v, .cpp, exe, vcd, logs).')
+@click.option('--strict/--no-strict', default=False,
+              help='Exit with non-zero code on verification failures or timeouts.')
+@click.option('--save-report/--no-save-report', default=True,
+              help='Save verification report to a file.')
+@click.option('--save-testbenches/--no-save-testbenches', default=False,
+              help='Save generated testbenches.')
+@click.option('--verbose', '-v', is_flag=True, default=False,
+              help='Enable verbose logging.')
+def verify_rtl_cmd(source_file, target, test_vectors, num_tests, seed, max_cycles, vcd, output_dir, strict, save_report, save_testbenches, verbose):
+    """
+    Verify compiled RTL against Python source execution using Verilator.
+    
+    Performs co-simulation, compares Python results against RTL cycle-accurate simulation,
+    and reports cycle counts, equivalence status, or mismatch diagnostics.
+    """
+    if verbose:
+        import logging
+        logging.basicConfig(level=logging.DEBUG)
+    
+    try:
+        from .verification.rtl_verifier import RTLVerifier
+        from .verification.exceptions import (
+            RTLVerificationError,
+            RTLVerificationInterfaceError,
+            RTLMismatchError
+        )
+        
+        # Load test vectors if provided
+        vectors = None
+        if test_vectors:
+            vectors = RTLVerifier.load_test_vectors(test_vectors)
+        
+        # Compile source first
+        hls = HLS()
+        click.echo(f"Compiling {source_file} for RTL verification...")
+        hls.compile(source_file, target=target)
+        
+        # Verify RTL
+        click.echo(f"Running RTL simulation with Verilator (tests={num_tests}, seed={seed}, max_cycles={max_cycles})...")
+        results = hls.verify_rtl(
+            test_vectors=vectors,
+            num_random_tests=num_tests,
+            seed=seed,
+            max_cycles=max_cycles,
+            vcd=vcd,
+            artifact_dir=output_dir,
+            strict=strict,
+            save_report=save_report,
+            save_testbenches=save_testbenches
+        )
+        
+        # Display report
+        if "report" in results:
+            click.echo("\n" + results["report"])
+        
+        # Check overall success if not strict mode
+        failed = False
+        verif_results = results.get("verification_results", {})
+        for mod, res in verif_results.items():
+            if "error" in res or res.get("comparison", {}).get("failed", 0) > 0:
+                failed = True
+                break
+        
+        if failed and strict:
+            sys.exit(1)
+            
+    except (RTLVerificationError, RTLVerificationInterfaceError, RTLMismatchError) as e:
+        click.echo(f"\nRTL Verification Error: {str(e)}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"\nError: {str(e)}", err=True)
+        sys.exit(1)
+
+
 @main.command()
 @click.option('--domain', '-d', type=click.Choice(['all', 'ml', 'data_science', 'finance']), default='all',
               help='Domain of workloads to benchmark.')

@@ -752,10 +752,6 @@ class VerilogGenerator:
         code.append("            FSM_INIT: begin")
         code.append("                valid <= 1'b0;")
         code.append("                done <= 1'b0;")
-        # Initialize mutable params for while loops (copy inputs to internal regs)
-        if config['fsm_type'] == 'while_control':
-            for p in config.get('mutable_params', []):
-                code.append(f"                {p}_internal <= {p};")
         # Initialize loop parameters for array processing
         if config['fsm_type'] == 'array_processing':
             # loop_counter is handled in datapath logic to avoid multiple drivers
@@ -1026,6 +1022,10 @@ class VerilogGenerator:
         body_block = body_blocks[0] if body_blocks else None
 
         code.append("        case (fsm_state)")
+        code.append("            FSM_INIT: begin")
+        for p in config.get('mutable_params', []):
+            code.append(f"                {p}_internal <= {p};")
+        code.append("            end")
         code.append("            FSM_WHILE_BODY: begin")
         if body_block:
             # Map temp vars to their defining expr so ASSIGN can inline (same-cycle correctness)
