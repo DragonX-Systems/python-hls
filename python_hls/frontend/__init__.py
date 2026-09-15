@@ -11,6 +11,22 @@ from .torch_fx import (
     lower_torch_model,
     compile_torch_model,
 )
+from .jax import (
+    JaxprGraph,
+    JaxprNode,
+    JaxprVariable,
+    trace_jax_kernel,
+    jax_kernel,
+    JAXArraySpec,
+    JAXKernelSpec,
+    jaxpr_to_ir,
+    lower_jaxpr_to_ast,
+    compile_jaxpr_to_callable,
+    JAXFrontendError,
+    JAXShapeError,
+    JAXDTypeError,
+    JAXUnsupportedPrimitiveError,
+)
 
 __all__ = [
     "PythonParser",
@@ -20,4 +36,18 @@ __all__ = [
     "TorchFXLowering",
     "lower_torch_model",
     "compile_torch_model",
+    "JaxprGraph",
+    "JaxprNode",
+    "JaxprVariable",
+    "trace_jax_kernel",
+    "jax_kernel",
+    "JAXArraySpec",
+    "JAXKernelSpec",
+    "jaxpr_to_ir",
+    "lower_jaxpr_to_ast",
+    "compile_jaxpr_to_callable",
+    "JAXFrontendError",
+    "JAXShapeError",
+    "JAXDTypeError",
+    "JAXUnsupportedPrimitiveError",
 ]

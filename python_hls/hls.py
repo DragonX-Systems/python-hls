@@ -5,7 +5,7 @@ Main HLS compiler implementation.
 import os
 import ast
 import logging
-from typing import Optional, Dict, Any, List, Union, Callable, Tuple
+from typing import Optional, Dict, Any, List, Union, Tuple, Sequence, Callable
 
 try:
     from cairosvg import svg2png  # For SVG to PNG conversion
@@ -353,6 +353,60 @@ class HLS:
                 
             file_handler.close()
     
+    def compile_jax(
+        self,
+        func_or_graph: Any,
+        example_inputs: Optional[Sequence[Any]] = None,
+        array_specs: Optional[Dict[str, Any]] = None,
+        target: str = "verilog",
+        debug: bool = False,
+        output_file: Optional[str] = None,
+        ppa_optimization: bool = False,
+        ppa_objective: str = "area",
+    ) -> Any:
+        """
+        Compile a statically bounded JAX kernel to target hardware RTL.
+
+        Args:
+            func_or_graph: JAX callable decorated with @jax_kernel or a JaxprGraph instance.
+            example_inputs: Sample input arrays for tracing.
+            array_specs: Explicit mapping of parameter names to JAXArraySpecs.
+            target: Target RTL language ("verilog" or "vhdl").
+            debug: Enable debug logging.
+            output_file: Optional path for generated RTL.
+            ppa_optimization: Enable PPA optimization pass.
+            ppa_objective: PPA objective ("area", "performance", "power", "balanced").
+
+        Returns:
+            Tuple of (netlist, synthesis_logs)
+        """
+        from .frontend.jax import trace_jax_kernel, lower_jaxpr_to_ast
+        graph = trace_jax_kernel(func_or_graph, example_inputs=example_inputs, array_specs=array_specs)
+        func_ast = lower_jaxpr_to_ast(graph)
+
+        import tempfile
+        lowered_code = ast.unparse(func_ast)
+        entry_name = graph.name
+
+        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as tf:
+            tf.write(lowered_code)
+            temp_path = tf.name
+
+        try:
+            out_path = output_file or f"{entry_name}.v"
+            return self.compile(
+                temp_path,
+                target=target,
+                debug=debug,
+                entry_function=entry_name,
+                output_file=out_path,
+                ppa_optimization=ppa_optimization,
+                ppa_objective=ppa_objective,
+            )
+        finally:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+
     def _process_optimization_hints(self):
         """
         Process optimization hints from pragmas and annotations in the source code.
