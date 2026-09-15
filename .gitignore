@@ -21,6 +21,7 @@
 .pytest_cache/
 *.gv
 *.txt
+build/
 *.vcd
 artifacts/
 *.egg-info/

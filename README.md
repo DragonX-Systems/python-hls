@@ -334,24 +334,76 @@ Kernels trading engineers care about—signal filters, linear algebra, latency-c
 
 See [docs/TRADING_QUICKSTART.md](docs/TRADING_QUICKSTART.md) and [docs/SUPPORTED_PYTHON.md](docs/SUPPORTED_PYTHON.md). Also [docs/TRADING_KERNELS_RESEARCH.md](docs/TRADING_KERNELS_RESEARCH.md) for FPGA-accelerated algorithm research.
 
-## Physical Implementation Handoff
+## Physical Implementation Handoff & DSE Calibration
 
 Python-HLS emits RTL that can be handed to an RTL-to-GDS flow for implementation measurements. The companion GPU-OpenLane project provides an optional OpenLane/OpenROAD-based path for synthesis, place-and-route, static timing analysis, DRC, and activity-based power estimation.
 
-Set `GPU_OPENLANE_ROOT` to the GPU-OpenLane checkout, then provide the generated RTL, its top module, an SDC constraints file, and a characterized Liberty library:
+Python-HLS automates this handoff end-to-end:
+1. **Flow Manifest Generation**: Generates `flow_manifest.json` packaging RTL, top module, auto-generated or supplied SDC constraints, characterized Liberty library, PDK, and early DSE estimates.
+2. **Companion Invocation & Export**: Executes `$GPU_OPENLANE_ROOT/eda_pipeline.py` or exports a standalone `run_openlane_handoff.sh` bundle for remote ASIC/GPU EDA servers.
+3. **Report Ingestion**: Ingests synthesis area, OpenSTA timing/slack, cell count, power, wirelength, DRC violations, PVT corner, and tool versions.
+4. **DSE Calibration Loop**: Compares implementation measurements with early DSE estimates, records error percentages, and generates calibrated `TechLibrary` JSON overlays to feed physical measurements back into future DSE iterations.
 
+### CLI Usage
+
+Export a reproducible handoff bundle:
 ```bash
-export GPU_OPENLANE_ROOT=/path/to/gpu-openlane
-
-python "$GPU_OPENLANE_ROOT/eda_pipeline.py" \
-  --rtl gcd.v \
-  --top gcd \
-  --lib /path/to/sky130.lib \
-  --sdc /path/to/design.sdc \
-  --output implementation/gcd
+python -m python_hls.cli openlane-handoff examples/gcd.py \
+  --lib examples/technology_libraries/sky130_sample.lib \
+  --output-dir build/openlane_gcd
 ```
 
-This is an optional downstream handoff, not a substitute for validating the generated RTL or a claim of foundry signoff. Use the reports from the implementation flow to calibrate and replace Python-HLS's early resource-model estimates.
+Run the handoff and calibrate DSE estimates against physical results:
+```bash
+python -m python_hls.cli openlane-handoff examples/gcd.py \
+  --lib examples/technology_libraries/sky130_sample.lib \
+  --output-dir build/openlane_gcd \
+  --run \
+  --calibrate \
+  --save-calibrated-lib calibrated_45nm.json
+```
+
+Calibrate existing implementation reports offline:
+```bash
+python -m python_hls.cli calibrate-dse examples/gcd.py \
+  --results build/openlane_gcd/eda_results.json \
+  --save-calibrated-lib calibrated_overlay.json
+```
+
+### Python API
+
+```python
+from python_hls import HLS
+
+hls = HLS(tech_node=45)
+
+# Export bundle (manifest, SDC, RTL, runner script)
+bundle = hls.export_openlane_handoff(
+    source_file="examples/gcd.py",
+    liberty_file="examples/technology_libraries/sky130_sample.lib",
+    output_dir="build/openlane_gcd",
+    clock_period_ns=5.0,  # 200 MHz
+)
+
+# Run handoff and ingest results
+result = hls.run_openlane_handoff(
+    source_file="examples/gcd.py",
+    liberty_file="examples/technology_libraries/sky130_sample.lib",
+    output_dir="build/openlane_gcd",
+)
+
+# Calibrate early DSE estimates and generate updated TechLibrary overlay
+calibration = hls.calibrate_dse(
+    source_file="examples/gcd.py",
+    implementation_results_or_dir=result.results_json_path,
+    save_calibrated_tech_library="calibrated_sky130.json",
+)
+print(calibration.to_markdown())
+```
+
+See [examples/openlane_dse_calibration.py](examples/openlane_dse_calibration.py) for a complete documented example.
+
+> **Signoff Distinction**: This automated handoff produces implementation measurements for calibrating and refining Python-HLS architectural resource models. It is an exploration and calibration bridge, not a substitute for validating generated RTL or a claim of foundry signoff.
 
 ## Future Work
 

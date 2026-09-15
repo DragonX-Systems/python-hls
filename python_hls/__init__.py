@@ -65,6 +65,22 @@ from .frontend.jax import (
     JAXUnsupportedPrimitiveError,
 )
 
+from .handoff import (
+    FlowManifest,
+    DesignSpec,
+    TechnologySpec,
+    FlowConfig,
+    DSEEstimateSpec,
+    SDCGenerator,
+    SDCConfig,
+    OpenLaneRunner,
+    HandoffResult,
+    ReportIngestionEngine,
+    ImplementationReport,
+    DSECalibrator,
+    CalibrationReport,
+)
+
 __version__ = "0.1.0"
 
 __all__ = [
@@ -101,4 +117,18 @@ __all__ = [
     'JAXShapeError',
     'JAXDTypeError',
     'JAXUnsupportedPrimitiveError',
+    # GPU-OpenLane Handoff & DSE Calibration
+    'FlowManifest',
+    'DesignSpec',
+    'TechnologySpec',
+    'FlowConfig',
+    'DSEEstimateSpec',
+    'SDCGenerator',
+    'SDCConfig',
+    'OpenLaneRunner',
+    'HandoffResult',
+    'ReportIngestionEngine',
+    'ImplementationReport',
+    'DSECalibrator',
+    'CalibrationReport',
 ]
