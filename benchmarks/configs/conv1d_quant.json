@@ -1,0 +1,31 @@
+{
+  "name": "conv1d_quant",
+  "domain": "ml",
+  "display_name": "Quantized 1D Temporal Convolution with Residual",
+  "description": "16-sample sequence convolved with 4-tap kernel, residual skip connection, and ReLU activation",
+  "entry_function": "conv1d_quant",
+  "shapes": {
+    "x": [16],
+    "weights": [4],
+    "bias": "scalar",
+    "out": [13]
+  },
+  "dtypes": {
+    "x": "int32 input time-series signal",
+    "weights": "int32 quantized filter coefficients",
+    "bias": "int32 scalar bias",
+    "out": "int32 filtered feature output"
+  },
+  "quantization": "8-bit integer weights/activations with 32-bit internal accumulation",
+  "hardware_assumptions": [
+    "Fixed length 16 input buffer, static 4-tap filter",
+    "Linear sliding window shift register / memory indexing",
+    "Zero-latency skip-connection addition and ReLU clamp"
+  ],
+  "unsupported_operations": [
+    "Dynamic dilation or variable stride factors",
+    "Dynamic padding modes",
+    "Floating point operations"
+  ],
+  "target_frequency_mhz": 1000.0
+}

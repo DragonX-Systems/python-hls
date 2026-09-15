@@ -1,0 +1,32 @@
+{
+  "name": "mlp_layer",
+  "domain": "ml",
+  "display_name": "Quantized MLP Layer (GEMV + ReLU)",
+  "description": "4x4 Quantized matrix-vector multiplication with bias accumulation and ReLU activation",
+  "entry_function": "mlp_layer",
+  "shapes": {
+    "x": [4],
+    "w": [4, 4],
+    "b": [4],
+    "y": [4]
+  },
+  "dtypes": {
+    "x": "int32 (quantized int8 input)",
+    "w": "int32 (quantized int8 weights)",
+    "b": "int32 bias",
+    "y": "int32 activated output"
+  },
+  "quantization": "int8 symmetric weights/inputs with 32-bit accumulators",
+  "hardware_assumptions": [
+    "Fixed static shapes: 4x4 matrix and 4-element vectors",
+    "No dynamic memory allocation or unbounded loops",
+    "Sequential or pipelined MAC schedule",
+    "Zero-latency ReLU clamp"
+  ],
+  "unsupported_operations": [
+    "Floating point operations",
+    "Dynamic tensor reshaping or batching",
+    "Non-linear activation functions requiring lookup tables"
+  ],
+  "target_frequency_mhz": 1000.0
+}

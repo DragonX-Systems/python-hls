@@ -1,0 +1,27 @@
+{
+  "name": "portfolio_var",
+  "domain": "finance",
+  "display_name": "4-Asset Portfolio Value-at-Risk (VaR 99%)",
+  "description": "Parametric portfolio variance quadratic form w^T*Sigma*w with integer volatility and 99% VaR scaling",
+  "entry_function": "portfolio_var",
+  "shapes": {
+    "weights": [4],
+    "cov_matrix": [4, 4]
+  },
+  "dtypes": {
+    "weights": "int32 asset weights in basis points (10000 = 100%)",
+    "cov_matrix": "int32 scaled covariance matrix"
+  },
+  "quantization": "Basis-point integer scaling with 8-iteration Newton-Raphson integer square root",
+  "hardware_assumptions": [
+    "Fixed 4-asset portfolio with statically bound double loop",
+    "Hardware sharing of divider unit for integer square root",
+    "Low-latency single-cycle MAC datapath"
+  ],
+  "unsupported_operations": [
+    "Dynamic portfolio rebalancing with variable asset dimensions",
+    "Monte Carlo path simulation requiring random number generators",
+    "Floating point operations"
+  ],
+  "target_frequency_mhz": 1000.0
+}

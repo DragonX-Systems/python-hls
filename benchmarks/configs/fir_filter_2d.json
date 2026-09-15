@@ -1,0 +1,29 @@
+{
+  "name": "fir_filter_2d",
+  "domain": "data_science",
+  "display_name": "2D Spatial FIR Filter (Sensor/Image Stencil)",
+  "description": "6x6 sensor image filtered with a 3x3 convolution stencil kernel producing a 4x4 output grid",
+  "entry_function": "fir_filter_2d",
+  "shapes": {
+    "img": [6, 6],
+    "kernel": [3, 3],
+    "out": [4, 4]
+  },
+  "dtypes": {
+    "img": "int32 input 2D image matrix",
+    "kernel": "int32 spatial convolution kernel coefficients",
+    "out": "int32 filtered spatial output"
+  },
+  "quantization": "Quantized integer filter weights with right-shift / 16 normalization",
+  "hardware_assumptions": [
+    "Fixed 6x6 image matrix with line buffer or register array access",
+    "Static 3x3 convolution window unrollable into parallel DSP multipliers",
+    "Valid boundary mode (no dynamic padding logic)"
+  ],
+  "unsupported_operations": [
+    "Dynamic image dimensions or runtime border padding modes",
+    "Non-rectangular kernel geometries",
+    "Floating point operations"
+  ],
+  "target_frequency_mhz": 1000.0
+}
