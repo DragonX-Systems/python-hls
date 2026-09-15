@@ -98,6 +98,20 @@ Validate semantics (strict mode: no global state, side effects):
 python -m python_hls.cli validate my_pipeline.py --strict
 ```
 
+Compile a cycle-accounted hardware pipeline with standard interfaces:
+
+```bash
+python -m python_hls.cli compile-pipeline examples/mac.py --ii 1 --depth 3 --interface axis -o mac_axis.v
+```
+
+Co-simulate and verify pipeline throughput, backpressure stalls, and bubbles with Verilator:
+
+```bash
+python -m python_hls.cli verify-pipeline examples/mac.py --ii 1 --depth 3 --interface axis --test-stalls --test-bubbles
+```
+
+See [docs/PIPELINE_AND_INTERFACES.md](docs/PIPELINE_AND_INTERFACES.md) for full architecture, capability matrix, and protocol specifications.
+
 Analyze for different technology nodes:
 
 ```bash

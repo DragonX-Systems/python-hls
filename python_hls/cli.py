@@ -486,6 +486,73 @@ def compile_torch_cli(source_file, model_var, input_shapes, target, output, opt_
 
     except Exception as e:
         click.echo(f"Error: {str(e)}", err=True)
+@main.command('compile-pipeline')
+@click.argument('source_file', type=click.Path(exists=True))
+@click.option('--entry-function', '-e', default=None, help='Entry function name.')
+@click.option('--ii', type=int, default=1, help='Initiation interval target (cycles).')
+@click.option('--depth', '-d', type=int, default=2, help='Pipeline depth / latency in cycles.')
+@click.option('--interface', '-i', type=click.Choice(['axis', 'ready_valid', 'memory']), default='axis',
+              help='Standard hardware interface.')
+@click.option('--data-width', '-w', type=int, default=32, help='Data width in bits.')
+@click.option('--output', '-o', type=click.Path(), default=None, help='Output Verilog file.')
+def compile_pipeline_cmd(source_file, entry_function, ii, depth, interface, data_width, output):
+    """Compile Python function to a cycle-accounted hardware pipeline with standard interfaces."""
+    hls = HLS()
+    try:
+        verilog = hls.compile_pipeline(
+            source=source_file,
+            entry_function=entry_function,
+            ii=ii,
+            depth=depth,
+            interface=interface,
+            data_width=data_width,
+            output_file=output,
+        )
+        if output:
+            click.echo(f"Compiled pipeline to {output}")
+        else:
+            click.echo(verilog)
+    except Exception as e:
+        click.echo(f"Error compiling pipeline: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@main.command('verify-pipeline')
+@click.argument('source_file', type=click.Path(exists=True))
+@click.option('--entry-function', '-e', default=None, help='Entry function name.')
+@click.option('--ii', type=int, default=1, help='Initiation interval target (cycles).')
+@click.option('--depth', '-d', type=int, default=2, help='Pipeline depth / latency in cycles.')
+@click.option('--interface', '-i', type=click.Choice(['axis', 'ready_valid', 'memory']), default='axis',
+              help='Standard hardware interface.')
+@click.option('--test-stalls/--no-stalls', default=True, help='Test backpressure stall behavior.')
+@click.option('--test-bubbles/--no-bubbles', default=True, help='Test bubble propagation.')
+def verify_pipeline_cmd(source_file, entry_function, ii, depth, interface, test_stalls, test_bubbles):
+    """Co-simulate and verify a pipeline implementation with Verilator."""
+    hls = HLS()
+    try:
+        res = hls.verify_pipeline(
+            source=source_file,
+            entry_function=entry_function,
+            ii=ii,
+            depth=depth,
+            interface=interface,
+            test_stalls=test_stalls,
+            test_bubbles=test_bubbles,
+        )
+        click.echo(f"Pipeline verification for {res.module_name}:")
+        click.echo(f"  Passed: {res.passed}")
+        click.echo(f"  Interface: {res.interface.upper()}")
+        click.echo(f"  Target II: {res.target_ii}, Measured II: {res.measured_ii:.2f}")
+        click.echo(f"  Transactions: {res.total_transactions_received}/{res.total_transactions_sent}")
+        click.echo(f"  Mismatches: {res.mismatches}")
+        click.echo(f"  Stalls tested: {res.stalls_tested}")
+        click.echo(f"  Bubbles tested: {res.bubbles_tested}")
+        click.echo(f"  Drained cleanly: {res.drained_cleanly}")
+        if not res.passed:
+            click.echo(f"Error: {res.error_message}", err=True)
+            sys.exit(1)
+    except Exception as e:
+        click.echo(f"Verification error: {str(e)}", err=True)
         sys.exit(1)
 
 

@@ -5,7 +5,7 @@ Main HLS compiler implementation.
 import os
 import ast
 import logging
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, List, Union, Callable, Tuple
 
 try:
     from cairosvg import svg2png  # For SVG to PNG conversion
@@ -2346,3 +2346,122 @@ class HLS:
             test_vectors=test_vectors,
             num_random_tests=num_random_tests,
         )
+
+    def compile_pipeline(
+        self,
+        source: Union[str, Callable],
+        entry_function: Optional[str] = None,
+        ii: int = 1,
+        depth: Optional[int] = None,
+        interface: str = "axis",
+        data_width: int = 32,
+        output_file: Optional[str] = None,
+    ) -> str:
+        """
+        Compile a Python function into a synthesizable, cycle-accounted hardware pipeline.
+        
+        Args:
+            source: Path to Python file, source code string, or Python callable
+            entry_function: Function name to compile
+            ii: Initiation interval target (>= 1)
+            depth: Pipeline depth / latency in cycles (>= 1)
+            interface: Hardware interface ('axis', 'ready_valid', or 'memory')
+            data_width: Data bus bit width
+            output_file: Optional path to write generated Verilog
+            
+        Returns:
+            Generated Verilog code as string
+        """
+        from .pipeline import PipelineSpec, PipelineVerilogGenerator
+        
+        spec = PipelineSpec(
+            ii=ii,
+            depth=depth or 2,
+            interface=interface,
+            data_width=data_width,
+        )
+        generator = PipelineVerilogGenerator(spec)
+        
+        if callable(source):
+            code = generator.generate_from_function(source, spec)
+        elif os.path.isfile(source):
+            with open(source, 'r') as f:
+                content = f.read()
+            code = generator.generate_from_source(content, entry_function, spec)
+        else:
+            code = generator.generate_from_source(source, entry_function, spec)
+            
+        if output_file:
+            with open(output_file, 'w') as f:
+                f.write(code)
+                
+        return code
+
+    def verify_pipeline(
+        self,
+        source: Union[str, Callable],
+        entry_function: Optional[str] = None,
+        ii: int = 1,
+        depth: Optional[int] = None,
+        interface: str = "axis",
+        test_vectors: Optional[List[Tuple[Any, ...]]] = None,
+        test_stalls: bool = True,
+        test_bubbles: bool = True,
+    ):
+        """
+        Co-simulate and verify a constraint-driven pipeline with Verilator.
+        
+        Args:
+            source: Path to Python file, source code string, or Python callable
+            entry_function: Function name to verify
+            ii: Initiation interval target (>= 1)
+            depth: Pipeline depth / latency in cycles (>= 1)
+            interface: Hardware interface ('axis', 'ready_valid', or 'memory')
+            test_vectors: Optional custom test vectors
+            test_stalls: Whether to test backpressure stall handling
+            test_bubbles: Whether to test bubble propagation
+            
+        Returns:
+            PipelineVerificationResult
+        """
+        from .pipeline import PipelineSpec, PipelineVerifier
+        
+        spec = PipelineSpec(
+            ii=ii,
+            depth=depth or 2,
+            interface=interface,
+        )
+        verifier = PipelineVerifier()
+        
+        if callable(source):
+            return verifier.verify_pipeline(
+                source, spec=spec, test_vectors=test_vectors,
+                test_stalls=test_stalls, test_bubbles=test_bubbles
+            )
+        
+        if os.path.isfile(source):
+            with open(source, 'r') as f:
+                src_code = f.read()
+        else:
+            src_code = source
+            
+        namespace: Dict[str, Any] = {}
+        exec(src_code, namespace)
+        fn_name = entry_function
+        if fn_name is None:
+            import ast
+            tree = ast.parse(src_code)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    fn_name = node.name
+                    break
+        if not fn_name or fn_name not in namespace:
+            raise ValueError(f"Function {fn_name} not found in source")
+            
+        func = namespace[fn_name]
+        return verifier.verify_pipeline(
+            func, spec=spec, test_vectors=test_vectors,
+            test_stalls=test_stalls, test_bubbles=test_bubbles,
+            source=src_code
+        )
+
