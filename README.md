@@ -38,6 +38,7 @@ The experimental PyTorch FX frontend imports a model graph and preserves operati
 - Run fast, technology-library-driven design-space exploration (DSE) using supplied resource-characterization numbers
 - Visualize datapaths, scheduled datapaths, control flow, and netlist microarchitecture
 - Generate early estimates for area, power, energy, and latency
+- Prototype statically shaped JAX kernels and lower them to inspectable IR and synthesizable Verilog RTL
 
 ## HLS Landscape
 
@@ -157,36 +158,30 @@ Compile a PyTorch model directly to Verilog:
 ```bash
 python -m python_hls.cli compile-torch examples/pytorch_linear_relu.py --input-shapes "4" -o linear_relu.v
 ```
-### Fast DSE with External Technology Libraries
+### Fast DSE with Characterized Foundry Technology Libraries
 
-The `analyze` command compiles a kernel across technology nodes, produces an area/power/latency comparison, and can use supplied resource-characterization numbers instead of relying only on the built-in illustrative models. Compiler decisions and their resulting datapath, schedule, control-flow, and netlist views remain inspectable.
+Python-HLS supports traceable ingestion of characterized technology data for early design-space exploration (DSE). You can pass characterized Synopsys Liberty (`.lib`) files, normalized characterization JSON libraries, or legacy JSON overlays to `compile` and `analyze`.
 
-Pass a JSON library to `compile` or `analyze`:
+Ingest a foundry Liberty file and export a normalized characterization library:
+
+```bash
+python -m python_hls.cli ingest-liberty examples/technology_libraries/reference_45nm.lib \
+  --output examples/technology_libraries/reference_45nm_characterized.json \
+  --tech-node 45 \
+  --corner typical
+```
+
+Run technology node analysis with traceable library data, PVT corners, and provenance:
 
 ```bash
 python -m python_hls.cli analyze examples/gcd.py \
   --tech-nodes 45,28,16,7 \
-  --tech-library examples/technology_libraries/example_45nm.json
+  --tech-library examples/technology_libraries/reference_45nm.lib
 ```
 
-Each entry overrides the corresponding resource model at its technology node. Unspecified resources use the built-in model; when an exact node is absent, the model is scaled as an early estimate.
+Compiler decisions and their resulting datapath, schedule, control-flow, and netlist views remain inspectable. Reports track library provenance (SHA256), operating voltage, temperature, PVT corner, drive strength, and characterization assumptions.
 
-```json
-{
-  "tech_node": 45,
-  "resources": [{
-    "name": "Adder_32bit",
-    "area": 180.0,
-    "latency": 1,
-    "energy_per_op": 0.8,
-    "leakage_power": 8.0,
-    "tech_node": 45,
-    "frequency": 1000.0
-  }]
-}
-```
-
-`area` is in µm², `energy_per_op` in pJ, `leakage_power` in µW, and `frequency` in MHz. These models support rapid architectural comparison; characterize and calibrate them against synthesis and physical-implementation reports before making implementation decisions.
+See [Characterized Foundry Technology Libraries](docs/TECHNOLOGY_LIBRARIES.md) for full mapping specifications, supported standard cells, unsupported constructs, and normalized JSON schema definitions.
 
 ### Python API
 
@@ -256,6 +251,48 @@ python -m python_hls.cli compile-torch examples/pytorch_linear_relu.py --input-s
 ```
 
 See [docs/PYTORCH_FX_LOWERING.md](docs/PYTORCH_FX_LOWERING.md) for detailed specifications on supported operators, static shapes, quantization types, memory interfaces, and diagnostic errors.
+
+### JAX Frontend for Statically Shaped Kernels (Issue #1)
+
+Python-HLS provides a prototype JAX frontend for defining, tracing, inspecting, and synthesizing statically shaped array kernels into hardware netlists and Verilog RTL.
+
+See [Architecture Decision Record (ADR): JAX Frontend](docs/ADR_JAX_FRONTEND.md) for full architecture rationale, IR boundaries, limitations, and comparison with NumPy and PyTorch frontends.
+
+#### Installation
+
+```bash
+pip install -e '.[jax]'
+```
+
+#### Kernel Definition & Tracing
+
+Kernels require explicit static shapes and integer or floating-point dtypes via the `@jax_kernel` decorator:
+
+```python
+import jax.numpy as jnp
+from python_hls import jax_kernel, trace_jax_kernel, HLS
+
+@jax_kernel(
+    shapes={"a": (16,), "b": (16,)},
+    dtypes={"a": "int32", "b": "int32"}
+)
+def vector_add(a, b):
+    return a + b
+
+# Trace to inspectable hardware graph
+graph = trace_jax_kernel(vector_add)
+print(graph.summary())
+
+# Compile directly to synthesizable Verilog RTL
+hls = HLS(tech_node=45)
+netlist, logs = hls.compile_jax(vector_add, target="verilog", output_file="vector_add.v")
+```
+
+#### Runnable Examples
+
+- [Vector Addition (1D)](examples/jax_vector_add.py)
+- [Matrix Multiplication (2D @ 2D)](examples/jax_matmul.py)
+- [Multi-Stage Activation Pipeline (Dense + Bias + ReLU)](examples/jax_relu_pipeline.py)
 
 ### Demo Kernels (Trading Firms)
 

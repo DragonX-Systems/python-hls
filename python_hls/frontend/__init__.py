@@ -1,5 +1,5 @@
 """
-Frontend module for parsing Python code into AST and lowering hardware models.
+Frontend module for parsing Python code into AST and importing frameworks.
 """
 
 from .parser import PythonParser
@@ -24,6 +24,22 @@ from .numpy import (
     NumPyDTypeError,
     NumPyUnsupportedOperationError,
 )
+from .jax import (
+    JaxprGraph,
+    JaxprNode,
+    JaxprVariable,
+    trace_jax_kernel,
+    jax_kernel,
+    JAXArraySpec,
+    JAXKernelSpec,
+    jaxpr_to_ir,
+    lower_jaxpr_to_ast,
+    compile_jaxpr_to_callable,
+    JAXFrontendError,
+    JAXShapeError,
+    JAXDTypeError,
+    JAXUnsupportedPrimitiveError,
+)
 
 __all__ = [
     "PythonParser",
@@ -44,4 +60,18 @@ __all__ = [
     "NumPyShapeError",
     "NumPyDTypeError",
     "NumPyUnsupportedOperationError",
+    "JaxprGraph",
+    "JaxprNode",
+    "JaxprVariable",
+    "trace_jax_kernel",
+    "jax_kernel",
+    "JAXArraySpec",
+    "JAXKernelSpec",
+    "jaxpr_to_ir",
+    "lower_jaxpr_to_ast",
+    "compile_jaxpr_to_callable",
+    "JAXFrontendError",
+    "JAXShapeError",
+    "JAXDTypeError",
+    "JAXUnsupportedPrimitiveError",
 ]

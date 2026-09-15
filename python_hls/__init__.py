@@ -49,6 +49,22 @@ from .frontend.numpy import (
     NumPyUnsupportedOperationError,
 )
 
+# JAX frontend for static lowerable kernels
+from .frontend.jax import (
+    jax_kernel,
+    JAXArraySpec,
+    JAXKernelSpec,
+    JaxprGraph,
+    JaxprNode,
+    JaxprVariable,
+    trace_jax_kernel,
+    jaxpr_to_ir,
+    JAXFrontendError,
+    JAXShapeError,
+    JAXDTypeError,
+    JAXUnsupportedPrimitiveError,
+)
+
 __version__ = "0.1.0"
 
 __all__ = [
@@ -72,4 +88,17 @@ __all__ = [
     'NumPyShapeError',
     'NumPyDTypeError',
     'NumPyUnsupportedOperationError',
-] 
+    # JAX frontend
+    'jax_kernel',
+    'JAXArraySpec',
+    'JAXKernelSpec',
+    'JaxprGraph',
+    'JaxprNode',
+    'JaxprVariable',
+    'trace_jax_kernel',
+    'jaxpr_to_ir',
+    'JAXFrontendError',
+    'JAXShapeError',
+    'JAXDTypeError',
+    'JAXUnsupportedPrimitiveError',
+]

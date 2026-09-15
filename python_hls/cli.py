@@ -34,7 +34,7 @@ def main():
 @click.option('--tech-node', '-n', type=int, default=45,
               help='Technology node in nm (e.g., 45, 28, 16, 7).')
 @click.option('--tech-library', type=click.Path(exists=True, dir_okay=False), default=None,
-              help='JSON resource models used for scheduling and early PPA estimates.')
+              help='Characterized Liberty (.lib) or JSON resource models used for scheduling and early PPA estimates.')
 @click.option('--schedule', '-s', type=click.Choice(['asap', 'alap', 'list']), default='asap',
               help='Scheduling algorithm.')
 @click.option('--visualize/--no-visualize', default=True,
@@ -42,7 +42,7 @@ def main():
 def compile(source_file, target, output, opt_level, tech_node, tech_library, schedule, visualize):
     """Compile a Python file to a hardware netlist."""
     # Create HLS compiler
-    library = TechLibrary.from_json(tech_library, tech_node) if tech_library else None
+    library = TechLibrary.from_file(tech_library, tech_node=tech_node) if tech_library else None
     hls = HLS(optimization_level=opt_level, tech_node=tech_node, tech_library=library)
     
     try:
@@ -69,6 +69,17 @@ def compile(source_file, target, output, opt_level, tech_node, tech_library, sch
         # Print summary
         click.echo(f"Compiled {source_file} to {output}")
         click.echo(f"Technology node: {tech_node} nm")
+        if library and library.metadata:
+            meta = library.metadata
+            click.echo(f"Tech library: {meta.library_name} (Corner: {meta.operating_condition.corner}, "
+                       f"Voltage: {meta.operating_condition.voltage:.2f}V, Temp: {meta.operating_condition.temperature:.1f}°C)")
+            if meta.provenance and meta.provenance.source_file:
+                prov_str = f"Provenance: {meta.provenance.source_file}"
+                if meta.provenance.sha256:
+                    prov_str += f" [SHA256: {meta.provenance.sha256[:12]}]"
+                click.echo(prov_str)
+            if meta.assumptions.notes:
+                click.echo(f"Assumptions: {meta.assumptions.notes}")
         click.echo(f"Optimization level: {opt_level}")
         click.echo(f"Scheduling algorithm: {schedule}")
         
@@ -139,7 +150,7 @@ def compile(source_file, target, output, opt_level, tech_node, tech_library, sch
 @click.option('--opt-level', '-O', type=click.IntRange(0, 3), default=1,
               help='Optimization level (0-3).')
 @click.option('--tech-library', type=click.Path(exists=True, dir_okay=False), default=None,
-              help='JSON resource models used for scheduling and early PPA estimates.')
+              help='Characterized Liberty (.lib) or JSON resource models used for scheduling and early PPA estimates.')
 def analyze(source_file, tech_nodes, opt_level, tech_library):
     """Analyze a Python file for different technology nodes."""
     # Parse technology nodes
@@ -149,12 +160,13 @@ def analyze(source_file, tech_nodes, opt_level, tech_library):
     results = {}
     optimization_reports = {}
     optimization_summaries = {}
+    tech_metadata = {}
     
     for node in nodes:
         click.echo(f"Analyzing for {node} nm technology node...")
         
         # Create HLS compiler with this technology node
-        library = TechLibrary.from_json(tech_library, node) if tech_library else None
+        library = TechLibrary.from_file(tech_library, tech_node=node) if tech_library else None
         hls = HLS(optimization_level=opt_level, tech_node=node, tech_library=library)
         
         try:
@@ -170,24 +182,35 @@ def analyze(source_file, tech_nodes, opt_level, tech_library):
             results[node] = metrics
             optimization_reports[node] = opt_report
             optimization_summaries[node] = opt_summary
+            tech_metadata[node] = library.get_metadata_summary() if library else hls.tech_library.get_metadata_summary()
             
         except Exception as e:
             click.echo(f"Error analyzing for {node} nm: {str(e)}", err=True)
     
     # Print comparison
     click.echo("\nTechnology comparison:")
-    click.echo("===============================")
-    click.echo(f"{'Node (nm)':<10} {'Area (μm²)':<15} {'Power (mW)':<15} {'Latency (cycles)':<15}")
-    click.echo("-------------------------------")
+    click.echo("=========================================================================================")
+    click.echo(f"{'Node (nm)':<10} {'Corner/Library':<24} {'Area (μm²)':<14} {'Power (mW)':<14} {'Latency (cycles)':<15}")
+    click.echo("-----------------------------------------------------------------------------------------")
     
     for node in sorted(results.keys()):
         metrics = results[node]
         area = metrics['total_area']
         power = metrics['total_power']
         latency = metrics['latency_cycles']
+        meta = tech_metadata.get(node, {})
+        lib_info = f"{meta.get('corner', 'nominal')}/{meta.get('library_name', 'built-in')}"[:23]
         
-        click.echo(f"{node:<10} {area:<15.2f} {power:<15.2f} {latency:<15}")
+        click.echo(f"{node:<10} {lib_info:<24} {area:<14.2f} {power:<14.2f} {latency:<15}")
     
+    # Print library provenance and assumptions if available
+    if tech_metadata:
+        first_meta = next(iter(tech_metadata.values()))
+        if first_meta.get("source_file"):
+            click.echo(f"\nLibrary Source: {first_meta['source_file']}")
+        if first_meta.get("assumptions_notes"):
+            click.echo(f"Assumptions: {first_meta['assumptions_notes']}")
+
     # Print optimization summary for the first node
     if optimization_summaries:
         first_node = sorted(optimization_summaries.keys())[0]
@@ -209,7 +232,8 @@ def analyze(source_file, tech_nodes, opt_level, tech_library):
     with open(report_file, 'w') as f:
         json.dump({
             'tech_comparison': results,
-            'optimization_reports': optimization_reports
+            'optimization_reports': optimization_reports,
+            'technology_metadata': tech_metadata
         }, f, indent=2)
     
     # Save optimization summaries to a text file
@@ -222,6 +246,58 @@ def analyze(source_file, tech_nodes, opt_level, tech_library):
     
     click.echo(f"\nDetailed analysis saved to: {report_file}")
     click.echo(f"Optimization summaries saved to: {summary_file}")
+
+
+@main.command('ingest-liberty')
+@click.argument('liberty_file', type=click.Path(exists=True, dir_okay=False))
+@click.option('--output', '-o', type=click.Path(), default=None,
+              help='Output JSON path for normalized characterization library.')
+@click.option('--tech-node', '-n', type=int, default=None,
+              help='Technology node in nm (default: inferred or 45nm).')
+@click.option('--corner', '-c', type=str, default=None,
+              help='Operating condition / PVT corner name to ingest.')
+@click.option('--frequency', '-f', type=float, default=1000.0,
+              help='Target operating clock frequency in MHz.')
+@click.option('--drive-strength', '-d', type=str, default="X1",
+              help='Preferred drive strength variant to match (e.g. X1, X2).')
+def ingest_liberty(liberty_file, output, tech_node, corner, frequency, drive_strength):
+    """Ingest a characterized Synopsys Liberty (.lib) library and export normalized JSON."""
+    click.echo(f"Ingesting Liberty library: {liberty_file}")
+    try:
+        library = TechLibrary.from_liberty(
+            liberty_file,
+            tech_node=tech_node,
+            operating_condition=corner,
+            target_frequency_mhz=frequency,
+            drive_strength=drive_strength,
+        )
+        meta = library.metadata
+        click.echo(f"Library Name: {meta.library_name}")
+        click.echo(f"Technology Node: {meta.tech_node} nm")
+        click.echo(f"PVT Corner: {meta.operating_condition.corner} "
+                   f"({meta.operating_condition.voltage:.2f}V, {meta.operating_condition.temperature:.1f}°C, "
+                   f"process {meta.operating_condition.process:.2f})")
+        click.echo(f"Matched Standard Cells: {len(meta.cell_mappings)}")
+        for prim, cell in sorted(meta.cell_mappings.items()):
+            click.echo(f"  {prim:<12} -> {cell}")
+        if meta.unsupported_cells:
+            click.echo(f"\nUnsupported/Ignored Constructs: {len(meta.unsupported_cells)}")
+            for item in meta.unsupported_cells[:5]:
+                click.echo(f"  [Ignored] {item}")
+            if len(meta.unsupported_cells) > 5:
+                click.echo(f"  ... and {len(meta.unsupported_cells) - 5} more")
+
+        # Output path
+        if output is None:
+            base, _ = os.path.splitext(liberty_file)
+            output = f"{base}_characterized.json"
+
+        library.to_normalized_json(output)
+        click.echo(f"\nNormalized characterization library exported to: {output}")
+
+    except Exception as e:
+        click.echo(f"Error ingesting Liberty library: {str(e)}", err=True)
+        sys.exit(1)
 
 
 @main.command()
