@@ -93,6 +93,18 @@ Verify refactor equivalence (functional, cycle-accurate, or bit-exact):
 python -m python_hls.cli verify-equivalence examples/gcd.py examples/gcd_refactored.py
 ```
 
+Verify generated RTL against Python reference execution with Verilator:
+
+```bash
+# Deterministic co-simulation with random and corner-case vectors
+python -m python_hls.cli verify-rtl demos/trading/gcd.py --seed 42
+
+# Enable VCD waveform dumps and preserve simulation artifacts
+python -m python_hls.cli verify-rtl demos/trading/gcd.py --vcd --output-dir sim_artifacts/
+```
+
+See [Verification Support Matrix](docs/VERIFICATION_SUPPORT_MATRIX.md) for detailed interface specifications, supported control-flow constructs, and diagnostic guidelines.
+
 Validate semantics (strict mode: no global state, side effects):
 
 ```bash

@@ -21,6 +21,8 @@
 .pytest_cache/
 *.gv
 *.txt
+*.vcd
+artifacts/
 *.egg-info/
 
 # Benchmark configs, reports, and emitted RTL are tracked
