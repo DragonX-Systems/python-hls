@@ -1,0 +1,64 @@
+{
+  "vwap_orderbook": {
+    "workload": {
+      "name": "vwap_orderbook",
+      "domain": "finance",
+      "display_name": "5-Level LOB Micro-Price and VWAP Signal",
+      "description": "Limit order book depth pipeline computing volume-weighted average price and micro-price signals",
+      "source_file": "/Users/rigelsmacbook/Projects/python-hls/benchmarks/workloads/finance/vwap_orderbook.py",
+      "entry_function": "vwap_orderbook",
+      "shapes": {
+        "bid_prices": [
+          5
+        ],
+        "bid_sizes": [
+          5
+        ],
+        "ask_prices": [
+          5
+        ],
+        "ask_sizes": [
+          5
+        ]
+      },
+      "dtypes": {
+        "bid_prices": "int32 prices",
+        "bid_sizes": "int32 sizes",
+        "ask_prices": "int32 prices",
+        "ask_sizes": "int32 sizes"
+      },
+      "quantization": "Integer price-time tick representation with basis-point precision",
+      "hardware_assumptions": [
+        "Fixed 5-level market depth snapshot directly streamable",
+        "Parallel multiply-accumulate trees for notional calculations",
+        "Deterministic divider units for VWAP ratios"
+      ],
+      "unsupported_operations": [
+        "Dynamic order book level insertion trees",
+        "String parsing of FIX/ITCH network packets"
+      ],
+      "target_frequency_mhz": 1000.0,
+      "num_test_vectors": 2
+    },
+    "compilation": {
+      "status": "PASS",
+      "error": null,
+      "operations_count": 27,
+      "cycle_latency": 176,
+      "modules": [
+        "vwap_orderbook"
+      ],
+      "verilog_path": null
+    },
+    "equivalence": {
+      "status": "PASS",
+      "total_vectors": 2,
+      "passed_vectors": 2,
+      "failed_vectors": 0,
+      "sim_backend": "python_reference",
+      "mismatches": [],
+      "error": null
+    },
+    "ppa": {}
+  }
+}

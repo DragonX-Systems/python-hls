@@ -1,0 +1,27 @@
+{
+  "name": "covariance_matrix",
+  "domain": "data_science",
+  "display_name": "Multi-Feature Sample Covariance Matrix",
+  "description": "4x4 covariance matrix computed from 4 features and 8 observation samples",
+  "entry_function": "covariance_matrix",
+  "shapes": {
+    "data": [4, 8],
+    "cov": [4, 4]
+  },
+  "dtypes": {
+    "data": "int32 observation matrix (scaled integer)",
+    "cov": "int32 pairwise sample covariance matrix"
+  },
+  "quantization": "Scaled integer arithmetic with integer division by (N-1)=7",
+  "hardware_assumptions": [
+    "Fixed 4x8 observations array",
+    "Two-stage reduction datapath (mean reduction followed by cross-deviation products)",
+    "Direct BRAM / register bank addressing"
+  ],
+  "unsupported_operations": [
+    "Dynamic feature or observation counts",
+    "Floating point division",
+    "Online dynamic rolling updates"
+  ],
+  "target_frequency_mhz": 1000.0
+}

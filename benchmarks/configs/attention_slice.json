@@ -1,0 +1,31 @@
+{
+  "name": "attention_slice",
+  "domain": "ml",
+  "display_name": "Scaled Dot-Product Attention Slice",
+  "description": "Transformer attention primitive with Q*K^T scoring, integer normalization, and context projection",
+  "entry_function": "attention_slice",
+  "shapes": {
+    "q": [4],
+    "k": [4, 4],
+    "v": [4, 4],
+    "out": [4]
+  },
+  "dtypes": {
+    "q": "int32 query head vector",
+    "k": "int32 key matrix",
+    "v": "int32 value matrix",
+    "out": "int32 context projection vector"
+  },
+  "quantization": "Integer scaled fixed-point with sqrt(d_k)=2 factor",
+  "hardware_assumptions": [
+    "Fixed 4-element head dimension and 4-token sequence slice",
+    "Integer sum normalization instead of floating point exponential softmax",
+    "Sequential or pipelined inner-product dot product"
+  ],
+  "unsupported_operations": [
+    "Transcendental exp() operations in hardware",
+    "Dynamic sequence lengths or causal masking arrays with variable shapes",
+    "Floating point operations"
+  ],
+  "target_frequency_mhz": 1000.0
+}
