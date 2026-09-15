@@ -1,9 +1,16 @@
 """
-Frontend module for parsing Python code into AST and importing hardware models.
+Frontend module for parsing Python code into AST and importing frameworks.
 """
- 
+
 from .parser import PythonParser
-from .torch_fx import TorchFXGraph, TorchFXNode, trace_torch_model
+from .torch_fx import (
+    TorchFXGraph,
+    TorchFXNode,
+    trace_torch_model,
+    TorchFXLowering,
+    lower_torch_model,
+    compile_torch_model,
+)
 from .jax import (
     JaxprGraph,
     JaxprNode,
@@ -26,6 +33,9 @@ __all__ = [
     "TorchFXGraph",
     "TorchFXNode",
     "trace_torch_model",
+    "TorchFXLowering",
+    "lower_torch_model",
+    "compile_torch_model",
     "JaxprGraph",
     "JaxprNode",
     "JaxprVariable",
