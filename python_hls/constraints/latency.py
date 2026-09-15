@@ -46,6 +46,8 @@ class LatencyConstraint:
     mode: str = 'max'  # 'exact', 'max', 'range'
     min_cycles: Optional[int] = None
     pipeline_ii: Optional[int] = None
+    pipeline_depth: Optional[int] = None
+    interface: Optional[str] = None
     
     def __post_init__(self):
         if self.mode == 'range' and self.min_cycles is None:
@@ -73,6 +75,8 @@ class LatencyConstraint:
             'mode': self.mode,
             'min_cycles': self.min_cycles,
             'pipeline_ii': self.pipeline_ii,
+            'pipeline_depth': self.pipeline_depth,
+            'interface': self.interface,
         }
     
     @classmethod
@@ -86,7 +90,8 @@ _latency_constraints: Dict[str, LatencyConstraint] = {}
 
 
 def latency(cycles: int, *, mode: str = 'max', min_cycles: Optional[int] = None,
-            target: Optional[int] = None, pipeline_ii: Optional[int] = None) -> Callable:
+            target: Optional[int] = None, pipeline_ii: Optional[int] = None,
+            pipeline_depth: Optional[int] = None, interface: Optional[str] = None) -> Callable:
     """
     Decorator to specify latency constraints for a function.
     
@@ -99,6 +104,8 @@ def latency(cycles: int, *, mode: str = 'max', min_cycles: Optional[int] = None,
         min_cycles: Minimum latency for 'range' mode
         target: Target latency for optimization (soft constraint)
         pipeline_ii: Required initiation interval for pipelined execution
+        pipeline_depth: Required pipeline depth / latency in cycles
+        interface: Selected interface mode ('axis', 'ready_valid', 'memory')
     
     Examples:
         @latency(8)
@@ -123,6 +130,8 @@ def latency(cycles: int, *, mode: str = 'max', min_cycles: Optional[int] = None,
         mode=mode,
         min_cycles=min_cycles,
         pipeline_ii=pipeline_ii,
+        pipeline_depth=pipeline_depth,
+        interface=interface,
     )
     
     def decorator(func: Callable) -> Callable:
@@ -193,13 +202,30 @@ def parse_latency_pragma(comment: str) -> Optional[LatencyConstraint]:
             mode = 'max'
         return LatencyConstraint(max_cycles=cycles, mode=mode)
     
-    # Check for pipeline II
-    match = re.search(LATENCY_PRAGMA_PATTERNS['pipeline_ii'], comment, re.IGNORECASE)
-    if match:
-        ii = int(match.group(1))
-        # Pipeline II implies a constraint on throughput, not total latency
-        # We return a constraint that captures this
-        return LatencyConstraint(max_cycles=ii * 1000, pipeline_ii=ii)  # Large max, real constraint is II
+    # Check for pipeline pragma: pipeline ii=1 [depth=2] [interface=axis]
+    if 'pipeline' in comment.lower() and 'pragma' in comment.lower():
+        ii_match = re.search(r'ii\s*=\s*(\d+)', comment, re.IGNORECASE)
+        ii = int(ii_match.group(1)) if ii_match else 1
+        
+        depth_match = re.search(r'depth\s*=\s*(\d+)', comment, re.IGNORECASE)
+        depth = int(depth_match.group(1)) if depth_match else None
+        
+        iface_match = re.search(r'interface\s*=\s*([a-zA-Z0-9_]+)', comment, re.IGNORECASE)
+        interface = iface_match.group(1).lower() if iface_match else None
+        
+        return LatencyConstraint(
+            max_cycles=depth if depth is not None else ii * 1000,
+            pipeline_ii=ii,
+            pipeline_depth=depth,
+            interface=interface
+        )
+    
+    # Check for interface pragma alone: # pragma hls interface mode=axis
+    if 'interface' in comment.lower() and 'pragma' in comment.lower():
+        mode_match = re.search(r'mode\s*=\s*([a-zA-Z0-9_]+)', comment, re.IGNORECASE)
+        if mode_match:
+            interface = mode_match.group(1).lower()
+            return LatencyConstraint(max_cycles=1000, interface=interface)
     
     return None
 
@@ -276,6 +302,8 @@ def _parse_latency_decorator(decorator: ast.expr) -> Optional[LatencyConstraint]
         min_cycles = None
         target = None
         pipeline_ii = None
+        pipeline_depth = None
+        interface = None
         
         # Positional argument: cycles
         if decorator.args and isinstance(decorator.args[0], ast.Constant):
@@ -291,6 +319,10 @@ def _parse_latency_decorator(decorator: ast.expr) -> Optional[LatencyConstraint]
                 target = kw.value.value
             elif kw.arg == 'pipeline_ii' and isinstance(kw.value, ast.Constant):
                 pipeline_ii = kw.value.value
+            elif kw.arg == 'pipeline_depth' and isinstance(kw.value, ast.Constant):
+                pipeline_depth = kw.value.value
+            elif kw.arg == 'interface' and isinstance(kw.value, ast.Constant):
+                interface = kw.value.value
         
         if cycles is not None:
             return LatencyConstraint(
@@ -299,9 +331,33 @@ def _parse_latency_decorator(decorator: ast.expr) -> Optional[LatencyConstraint]
                 mode=mode,
                 min_cycles=min_cycles,
                 pipeline_ii=pipeline_ii,
+                pipeline_depth=pipeline_depth,
+                interface=interface,
             )
-    
-    return None
+            
+    # Check if it's a call to 'pipeline'
+    if isinstance(decorator.func, ast.Name) and decorator.func.id == 'pipeline':
+        ii = 1
+        depth = 2
+        interface = 'axis'
+        
+        if decorator.args and isinstance(decorator.args[0], ast.Constant):
+            ii = decorator.args[0].value
+            
+        for kw in decorator.keywords:
+            if kw.arg == 'ii' and isinstance(kw.value, ast.Constant):
+                ii = kw.value.value
+            elif kw.arg == 'depth' and isinstance(kw.value, ast.Constant):
+                depth = kw.value.value
+            elif kw.arg == 'interface' and isinstance(kw.value, ast.Constant):
+                interface = kw.value.value
+                
+        return LatencyConstraint(
+            max_cycles=depth if depth is not None else ii * 1000,
+            pipeline_ii=ii,
+            pipeline_depth=depth,
+            interface=interface
+        )
 
 
 def enforce_latency_constraint(func_name: str, actual_cycles: int, 
