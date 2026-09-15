@@ -196,6 +196,12 @@ class HLS:
             # Read source for constraint extraction
             with open(source_file, 'r') as f:
                 source_code = f.read()
+
+            from .frontend.numpy import NumPyFrontend
+            if NumPyFrontend.is_numpy_source(source_code):
+                logger.info("Detected NumPy kernel in source file; lowering via NumPyFrontend")
+                frontend = NumPyFrontend()
+                source_code = frontend.parse_and_lower_source(source_code, entry_function=entry_function)
             
             # Extract latency constraints from source
             logger.info("Extracting latency constraints from source")
@@ -217,7 +223,7 @@ class HLS:
             
             # Parse Python source code
             logger.info("Parsing Python source code")
-            ast_tree = self.parser.parse_file(source_file, entry_function)
+            ast_tree = self.parser.parse_source(source_code, entry_function)
             
             # Generate IR
             logger.info("Generating Intermediate Representation (IR)")
@@ -354,6 +360,103 @@ class HLS:
                 
             file_handler.close()
     
+    def compile_numpy(
+        self,
+        func_or_file: Union[Any, str],
+        array_specs: Optional[Dict[str, Any]] = None,
+        shapes: Optional[Dict[str, Tuple[int, ...]]] = None,
+        dtypes: Optional[Dict[str, str]] = None,
+        example_inputs: Optional[Tuple[Any, ...]] = None,
+        target: str = "verilog",
+        debug: bool = False,
+        entry_function: Optional[str] = None,
+        output_file: Optional[str] = None,
+        ppa_optimization: bool = False,
+        ppa_objective: str = "area",
+    ) -> Any:
+        """
+        Compile a bounded NumPy function or file into target RTL.
+        
+        Args:
+            func_or_file: Python callable decorated with @numpy_kernel, or path to Python file
+            array_specs: Explicit mapping of parameter names to ArraySpec objects
+            shapes: Mapping of parameter names to shape tuples
+            dtypes: Mapping of parameter names to dtype strings
+            example_inputs: Sample concrete input arrays for shape/dtype inference
+            target: "verilog" or "vhdl"
+            debug: Enable debug logging
+            entry_function: Entry function name (if compiling a file)
+            output_file: Path to write generated RTL
+            ppa_optimization: Enable PPA optimizations
+            ppa_objective: PPA objective ("area", "performance", "power", "balanced")
+            
+        Returns:
+            Tuple of (netlist, synthesis_logs)
+        """
+        from .frontend.numpy import NumPyFrontend
+        frontend = NumPyFrontend()
+
+        if isinstance(func_or_file, str):
+            if os.path.exists(func_or_file):
+                return self.compile(
+                    func_or_file,
+                    target=target,
+                    debug=debug,
+                    entry_function=entry_function,
+                    output_file=output_file,
+                    ppa_optimization=ppa_optimization,
+                    ppa_objective=ppa_objective,
+                )
+            else:
+                import tempfile
+                with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as tf:
+                    tf.write(func_or_file)
+                    temp_path = tf.name
+                try:
+                    return self.compile(
+                        temp_path,
+                        target=target,
+                        debug=debug,
+                        entry_function=entry_function,
+                        output_file=output_file,
+                        ppa_optimization=ppa_optimization,
+                        ppa_objective=ppa_objective,
+                    )
+                finally:
+                    if os.path.exists(temp_path):
+                        os.unlink(temp_path)
+        elif callable(func_or_file):
+            func = func_or_file
+            func_ast = frontend.lower_callable(
+                func,
+                array_specs=array_specs,
+                shapes=shapes,
+                dtypes=dtypes,
+                example_inputs=example_inputs,
+            )
+            import tempfile
+            lowered_code = ast.unparse(func_ast)
+            entry_name = func.__name__
+            with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as tf:
+                tf.write(lowered_code)
+                temp_path = tf.name
+            try:
+                out_path = output_file or f"{entry_name}.v"
+                return self.compile(
+                    temp_path,
+                    target=target,
+                    debug=debug,
+                    entry_function=entry_name,
+                    output_file=out_path,
+                    ppa_optimization=ppa_optimization,
+                    ppa_objective=ppa_objective,
+                )
+            finally:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+        else:
+            raise ValueError(f"Expected callable or filepath/source string, got {type(func_or_file)}")
+
     def compile_jax(
         self,
         func_or_graph: Any,
