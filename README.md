@@ -31,6 +31,7 @@ The experimental PyTorch FX frontend imports a model graph and preserves operati
 ## Features
 
 - Convert standard Python code to hardware descriptions
+- Bounded NumPy frontend: lower fixed-shape NumPy kernels (elementwise, reductions, matmul, activations) into hardware RTL without writing manual C++ models (see [NUMPY_FRONTEND.md](docs/NUMPY_FRONTEND.md))
 - Schedule operations using ASAP, ALAP, or list scheduling algorithms
 - Allocate hardware resources and bind operations to resources
 - Analyze design at different technology nodes (45nm, 28nm, 16nm, 7nm, etc.)
@@ -131,6 +132,27 @@ Analyze for different technology nodes:
 python -m python_hls.cli analyze examples/gcd.py --tech-nodes 45,28,16,7
 ```
 
+### Bounded NumPy Hardware Kernels
+
+You can compile fixed-shape NumPy functions directly to hardware RTL using `@numpy_kernel` and `HLS.compile_numpy()`:
+
+```python
+import numpy as np
+from python_hls import HLS, numpy_kernel
+
+@numpy_kernel(
+    shapes={"a": (16,), "b": (16,)},
+    dtypes={"a": "int32", "b": "int32"}
+)
+def vector_add(a, b):
+    return a + b
+
+hls = HLS(optimization_level=1, tech_node=45)
+netlist, logs = hls.compile_numpy(vector_add, output_file="vector_add.v")
+```
+
+See [NUMPY_FRONTEND.md](docs/NUMPY_FRONTEND.md) and [`examples/numpy_vector_add.py`](examples/numpy_vector_add.py) for more details.
+
 Run representative ML, data-science, and finance workload benchmarks:
 
 ```bash
@@ -148,7 +170,6 @@ Compile a PyTorch model directly to Verilog:
 ```bash
 python -m python_hls.cli compile-torch examples/pytorch_linear_relu.py --input-shapes "4" -o linear_relu.v
 ```
-
 ### Fast DSE with Characterized Foundry Technology Libraries
 
 Python-HLS supports traceable ingestion of characterized technology data for early design-space exploration (DSE). You can pass characterized Synopsys Liberty (`.lib`) files, normalized characterization JSON libraries, or legacy JSON overlays to `compile` and `analyze`.
