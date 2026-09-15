@@ -485,6 +485,137 @@ def benchmark(domain, workload, tier, output_dir, format):
             area_45 = f"{r.ppa_by_node[45].area_um2:.1f} um²" if 45 in r.ppa_by_node else "N/A"
             click.echo(f"{wl.domain:<14} {name:<24} {comp:<10} {eq:<10} {cyc:<14} {area_45:<12}")
         click.echo("=" * 90)
+@main.command('compile-torch')
+@click.argument('source_file', type=click.Path(exists=True))
+@click.option('--model-var', '-m', type=str, default='model',
+              help='Name of model variable or factory function in source file.')
+@click.option('--input-shapes', '-s', type=str, required=True,
+              help='Semicolon-separated input tensor shapes, e.g. "1,4" or "4;4".')
+@click.option('--target', '-t', type=click.Choice(['verilog', 'vhdl']), default='verilog',
+              help='Target HDL.')
+@click.option('--output', '-o', type=click.Path(), default=None,
+              help='Output file path for generated RTL.')
+@click.option('--opt-level', '-O', type=click.IntRange(0, 3), default=1,
+              help='Optimization level (0-3).')
+@click.option('--tech-node', '-n', type=int, default=45,
+              help='Technology node in nm.')
+@click.option('--embed-weights/--no-embed-weights', default=False,
+              help='Embed weights as constants (ROM) or interface ports.')
+def compile_torch_cli(source_file, model_var, input_shapes, target, output, opt_level, tech_node, embed_weights):
+    """
+    Compile a PyTorch model to hardware using FX qualified lowering.
+    
+    Example:
+        python -m python_hls.cli compile-torch examples/pytorch_linear_relu.py --input-shapes "1,4" -o model.v
+    """
+    import importlib.util
+    import torch
+    from .frontend.torch_fx import compile_torch_model
+
+    try:
+        spec = importlib.util.spec_from_file_location("user_model_module", source_file)
+        if not spec or not spec.loader:
+            click.echo(f"Error: Could not load module from {source_file}", err=True)
+            sys.exit(1)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        if not hasattr(mod, model_var):
+            click.echo(f"Error: '{model_var}' not found in {source_file}", err=True)
+            sys.exit(1)
+
+        model_obj = getattr(mod, model_var)
+        model = model_obj() if callable(model_obj) and not isinstance(model_obj, torch.nn.Module) else model_obj
+
+        example_inputs = []
+        for shape_str in input_shapes.split(";"):
+            shape = tuple(int(x.strip()) for x in shape_str.split(",") if x.strip())
+            example_inputs.append(torch.zeros(shape))
+
+        click.echo(f"Tracing and lowering PyTorch model '{type(model).__name__}' with shapes {[tuple(t.shape) for t in example_inputs]}...")
+        result = compile_torch_model(
+            model=model,
+            example_inputs=example_inputs,
+            target=target,
+            output_file=output,
+            opt_level=opt_level,
+            tech_node=tech_node,
+            embed_weights=embed_weights,
+        )
+        click.echo(f"Compilation succeeded! Target: {target}, Tech Node: {tech_node}nm")
+        if output:
+            click.echo(f"RTL generated at: {output}")
+
+    except Exception as e:
+        click.echo(f"Error: {str(e)}", err=True)
+@main.command('compile-pipeline')
+@click.argument('source_file', type=click.Path(exists=True))
+@click.option('--entry-function', '-e', default=None, help='Entry function name.')
+@click.option('--ii', type=int, default=1, help='Initiation interval target (cycles).')
+@click.option('--depth', '-d', type=int, default=2, help='Pipeline depth / latency in cycles.')
+@click.option('--interface', '-i', type=click.Choice(['axis', 'ready_valid', 'memory']), default='axis',
+              help='Standard hardware interface.')
+@click.option('--data-width', '-w', type=int, default=32, help='Data width in bits.')
+@click.option('--output', '-o', type=click.Path(), default=None, help='Output Verilog file.')
+def compile_pipeline_cmd(source_file, entry_function, ii, depth, interface, data_width, output):
+    """Compile Python function to a cycle-accounted hardware pipeline with standard interfaces."""
+    hls = HLS()
+    try:
+        verilog = hls.compile_pipeline(
+            source=source_file,
+            entry_function=entry_function,
+            ii=ii,
+            depth=depth,
+            interface=interface,
+            data_width=data_width,
+            output_file=output,
+        )
+        if output:
+            click.echo(f"Compiled pipeline to {output}")
+        else:
+            click.echo(verilog)
+    except Exception as e:
+        click.echo(f"Error compiling pipeline: {str(e)}", err=True)
+        sys.exit(1)
+
+
+@main.command('verify-pipeline')
+@click.argument('source_file', type=click.Path(exists=True))
+@click.option('--entry-function', '-e', default=None, help='Entry function name.')
+@click.option('--ii', type=int, default=1, help='Initiation interval target (cycles).')
+@click.option('--depth', '-d', type=int, default=2, help='Pipeline depth / latency in cycles.')
+@click.option('--interface', '-i', type=click.Choice(['axis', 'ready_valid', 'memory']), default='axis',
+              help='Standard hardware interface.')
+@click.option('--test-stalls/--no-stalls', default=True, help='Test backpressure stall behavior.')
+@click.option('--test-bubbles/--no-bubbles', default=True, help='Test bubble propagation.')
+def verify_pipeline_cmd(source_file, entry_function, ii, depth, interface, test_stalls, test_bubbles):
+    """Co-simulate and verify a pipeline implementation with Verilator."""
+    hls = HLS()
+    try:
+        res = hls.verify_pipeline(
+            source=source_file,
+            entry_function=entry_function,
+            ii=ii,
+            depth=depth,
+            interface=interface,
+            test_stalls=test_stalls,
+            test_bubbles=test_bubbles,
+        )
+        click.echo(f"Pipeline verification for {res.module_name}:")
+        click.echo(f"  Passed: {res.passed}")
+        click.echo(f"  Interface: {res.interface.upper()}")
+        click.echo(f"  Target II: {res.target_ii}, Measured II: {res.measured_ii:.2f}")
+        click.echo(f"  Transactions: {res.total_transactions_received}/{res.total_transactions_sent}")
+        click.echo(f"  Mismatches: {res.mismatches}")
+        click.echo(f"  Stalls tested: {res.stalls_tested}")
+        click.echo(f"  Bubbles tested: {res.bubbles_tested}")
+        click.echo(f"  Drained cleanly: {res.drained_cleanly}")
+        if not res.passed:
+            click.echo(f"Error: {res.error_message}", err=True)
+            sys.exit(1)
+    except Exception as e:
+        click.echo(f"Verification error: {str(e)}", err=True)
+        sys.exit(1)
 
 
 if __name__ == '__main__':

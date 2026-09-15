@@ -1,24 +1,17 @@
 """
-PyTorch FX graph import and qualified kernel lowering for Python-HLS.
-Backward-compatible shim forwarding to python_hls.frontend.torch_fx package.
+PyTorch FX frontend package for graph tracing and qualified kernel lowering.
 """
 
-from .torch_fx import (
+from .diagnostics import (
     PyTorchFrontendError,
     PyTorchShapeError,
     PyTorchDTypeError,
     PyTorchUnsupportedOperationError,
-    TensorSpec,
-    BroadcastingHelper,
-    normalize_dtype,
-    SUPPORTED_DTYPES,
-    TorchFXGraph,
-    TorchFXNode,
-    trace_torch_model,
-    TorchFXLowering,
-    lower_torch_model,
-    compile_torch_model,
 )
+from .spec import TensorSpec, BroadcastingHelper, normalize_dtype, SUPPORTED_DTYPES
+from .graph import TorchFXGraph, TorchFXNode, trace_torch_model
+from .lowering import TorchFXLowering
+from .compiler import lower_torch_model, compile_torch_model
 
 __all__ = [
     "PyTorchFrontendError",
