@@ -7,6 +7,15 @@ from typing import Dict, List, Optional, Union, Any
 import json
 import math
 
+from .schema import (
+    CharacterizationMetadata,
+    NormalizedOperatingCondition,
+    NormalizedUnits,
+    NormalizedAssumptions,
+    NormalizedProvenance,
+    validate_normalized_schema,
+)
+
 
 @dataclass
 class ResourceModel:
@@ -18,6 +27,7 @@ class ResourceModel:
     leakage_power: float  # in μW
     tech_node: int  # in nm
     frequency: float  # in MHz
+    provenance: Optional[Dict[str, Any]] = None
     
     def scale_to_node(self, new_node: int) -> 'ResourceModel':
         """
@@ -134,6 +144,11 @@ class ResourceModel:
         min_freq_scale = 0.3
         freq_scale = max(min_freq_scale, min(max_freq_scale, freq_scale))
         
+        scaled_prov = dict(self.provenance) if self.provenance else {}
+        scaled_prov["scaled_from_node"] = self.tech_node
+        scaled_prov["target_node"] = new_node
+        scaled_prov["scaling_method"] = "empirical_process_scaling"
+
         return ResourceModel(
             name=self.name,
             area=self.area * area_scale,
@@ -141,7 +156,8 @@ class ResourceModel:
             energy_per_op=self.energy_per_op * energy_scale,
             leakage_power=self.leakage_power * leakage_scale,
             tech_node=new_node,
-            frequency=self.frequency * freq_scale
+            frequency=self.frequency * freq_scale,
+            provenance=scaled_prov,
         )
 
 
@@ -157,6 +173,7 @@ class TechLibrary:
         """
         self.tech_node = tech_node
         self.resources: Dict[str, Dict[int, ResourceModel]] = {}
+        self.metadata: Optional[CharacterizationMetadata] = None
         
         # Initialize default library with 45nm models
         self._init_default_library()
@@ -436,11 +453,8 @@ class TechLibrary:
     def from_json(cls, path: str, tech_node: Optional[int] = None) -> 'TechLibrary':
         """Create a technology library by overlaying resource models from JSON.
 
-        The JSON document must contain a ``resources`` array.  Every resource
-        supplies ``name``, ``area``, ``latency``, ``energy_per_op``,
-        ``leakage_power``, ``tech_node``, and ``frequency``.  Supplied models
-        replace the built-in model for the same resource name and technology
-        node; unspecified resources retain the built-in estimates.
+        Supports both normalized characterized technology libraries (Schema 1.0)
+        and legacy JSON overlays. Supplied models replace the built-in models.
         """
         try:
             with open(path, 'r', encoding='utf-8') as source:
@@ -458,6 +472,22 @@ class TechLibrary:
             raise ValueError("Technology library 'tech_node' must be an integer")
 
         library = cls(tech_node=selected_node)
+
+        # Check if this is a normalized characterization schema document
+        if "schema_version" in payload or "operating_condition" in payload or "provenance" in payload:
+            validate_normalized_schema(payload)
+            metadata = CharacterizationMetadata.from_dict(payload)
+            metadata.tech_node = selected_node
+            library.metadata = metadata
+        else:
+            # Legacy hand-authored JSON overlay
+            library.metadata = CharacterizationMetadata(
+                library_name="custom_json_overlay",
+                tech_node=selected_node,
+                provenance=NormalizedProvenance(source_file=path, source_format="manual_json"),
+                assumptions=NormalizedAssumptions(notes="Hand-authored JSON resource overlay."),
+            )
+
         required_fields = {
             'name', 'area', 'latency', 'energy_per_op', 'leakage_power',
             'tech_node', 'frequency',
@@ -479,12 +509,163 @@ class TechLibrary:
                     leakage_power=float(item['leakage_power']),
                     tech_node=int(item['tech_node']),
                     frequency=float(item['frequency']),
+                    provenance=item.get('provenance'),
                 )
             except (TypeError, ValueError) as error:
                 raise ValueError(f"Technology library resource {index} has an invalid value") from error
             library.add_resource(resource)
 
         return library
+
+    @classmethod
+    def from_liberty(
+        cls,
+        path: str,
+        tech_node: Optional[int] = None,
+        operating_condition: Optional[str] = None,
+        target_frequency_mhz: float = 1000.0,
+        drive_strength: str = "X1",
+        user_cell_mapping: Optional[Dict[str, str]] = None,
+    ) -> 'TechLibrary':
+        """Create a technology library by ingesting a characterized Synopsys Liberty (.lib) file.
+
+        Args:
+            path: Filepath to the .lib file
+            tech_node: Optional technology node in nm (defaults to library inferred or 45nm)
+            operating_condition: Corner or operating condition name (e.g. 'typical', 'slow')
+            target_frequency_mhz: Operating clock frequency in MHz for latency determination
+            drive_strength: Preferred drive strength variant to match (e.g. 'X1', 'X2')
+            user_cell_mapping: Optional custom cell-to-primitive mapping dictionary
+        """
+        import re
+        from .liberty_parser import LibertyParser
+        from .cell_mapping import CellToResourceMapper
+
+        parsed_lib = LibertyParser.parse_file(path)
+
+        # Determine native characterization node of the Liberty file
+        m = re.search(r'(\d+)\s*nm', parsed_lib.name, re.IGNORECASE)
+        native_node = int(m.group(1)) if m else 45
+
+        mapper = CellToResourceMapper(
+            tech_node=native_node,
+            target_frequency_mhz=target_frequency_mhz,
+            drive_strength=drive_strength,
+            user_cell_mapping=user_cell_mapping,
+        )
+
+        resources, metadata = mapper.build_resource_models(
+            parsed_lib,
+            operating_condition_name=operating_condition,
+        )
+
+        active_node = tech_node if tech_node is not None else native_node
+        metadata.tech_node = active_node
+
+        # Compute provenance
+        metadata.provenance = NormalizedProvenance.from_file(
+            path,
+            source_format="liberty",
+            description=f"Ingested from {parsed_lib.name} ({parsed_lib.technology})"
+        )
+
+        library = cls(tech_node=active_node)
+        library.metadata = metadata
+
+        for item in resources:
+            res = ResourceModel(
+                name=str(item['name']),
+                area=float(item['area']),
+                latency=int(item['latency']),
+                energy_per_op=float(item['energy_per_op']),
+                leakage_power=float(item['leakage_power']),
+                tech_node=int(item['tech_node']),
+                frequency=float(item['frequency']),
+                provenance=item.get('provenance'),
+            )
+            library.add_resource(res)
+
+        return library
+
+    @classmethod
+    def from_file(cls, path: str, tech_node: Optional[int] = None, **kwargs) -> 'TechLibrary':
+        """Load a technology library from either Liberty (.lib) or JSON (.json) file."""
+        if path.endswith('.lib'):
+            return cls.from_liberty(path, tech_node=tech_node, **kwargs)
+        return cls.from_json(path, tech_node=tech_node)
+
+    def to_normalized_json(self, path: Optional[str] = None) -> Dict[str, Any]:
+        """Export current library to normalized characterization JSON schema."""
+        meta_dict = self.metadata.to_dict() if self.metadata else {
+            "schema_version": "1.0",
+            "library_name": f"TechnologyLibrary_{self.tech_node}nm",
+            "tech_node": self.tech_node,
+            "operating_condition": {
+                "name": "nominal",
+                "process": 1.0,
+                "voltage": 1.10,
+                "temperature": 25.0,
+                "corner": "nominal"
+            },
+            "units": {
+                "time": "ns",
+                "voltage": "V",
+                "power": "uW",
+                "energy": "pJ",
+                "area": "um2",
+                "capacitance": "fF"
+            },
+            "assumptions": {
+                "clock_frequency_mhz": 1000.0,
+                "nominal_load_ff": 10.0,
+                "switching_activity": 0.1,
+                "drive_strength": "nominal",
+                "is_signoff": False,
+                "notes": "Exported from Python-HLS technology library."
+            },
+            "cell_mappings": {},
+            "unsupported_cells": []
+        }
+
+        # Export active resources for current tech node
+        resource_list = []
+        for res_name in sorted(self.resources.keys()):
+            res = self.get_resource(res_name, self.tech_node)
+            res_dict = {
+                "name": res.name,
+                "area": round(res.area, 2),
+                "latency": res.latency,
+                "energy_per_op": round(res.energy_per_op, 4),
+                "leakage_power": round(res.leakage_power, 3),
+                "tech_node": res.tech_node,
+                "frequency": round(res.frequency, 1),
+            }
+            if res.provenance:
+                res_dict["provenance"] = res.provenance
+            resource_list.append(res_dict)
+
+        meta_dict["resources"] = resource_list
+
+        if path:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(meta_dict, f, indent=2)
+
+        return meta_dict
+
+    def get_metadata_summary(self) -> Dict[str, Any]:
+        """Provide a concise metadata summary for DSE reports."""
+        if self.metadata:
+            return self.metadata.summary()
+        return {
+            "library_name": "built_in_default",
+            "tech_node": f"{self.tech_node}nm",
+            "corner": "nominal",
+            "operating_voltage_v": 1.10,
+            "temperature_c": 25.0,
+            "drive_strength": "nominal",
+            "is_signoff": False,
+            "source_file": "built-in approximations",
+        }
     
     def get_resource(self, name: str, tech_node: Optional[int] = None) -> ResourceModel:
         """

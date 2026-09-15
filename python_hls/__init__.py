@@ -37,33 +37,21 @@ def patched_add_resource(self, resource):
 # Replace the original method with our patched version
 NetlistModule.add_resource = patched_add_resource
 
-__version__ = "0.1.0"
-
-__all__ = [
-    'HLS',
-    'Netlist',
-    'NetlistModule',
-    # Constraints
-    'latency',
-    'LatencyConstraint',
-    'LatencyViolationError',
-    'EquivalenceChecker',
-    'EquivalenceResult',
-    # GPU-OpenLane Handoff & DSE Calibration
-    'FlowManifest',
-    'DesignSpec',
-    'TechnologySpec',
-    'FlowConfig',
-    'DSEEstimateSpec',
-    'SDCGenerator',
-    'SDCConfig',
-    'OpenLaneRunner',
-    'HandoffResult',
-    'ReportIngestionEngine',
-    'ImplementationReport',
-    'DSECalibrator',
-    'CalibrationReport',
-]
+# JAX frontend for static lowerable kernels
+from .frontend.jax import (
+    jax_kernel,
+    JAXArraySpec,
+    JAXKernelSpec,
+    JaxprGraph,
+    JaxprNode,
+    JaxprVariable,
+    trace_jax_kernel,
+    jaxpr_to_ir,
+    JAXFrontendError,
+    JAXShapeError,
+    JAXDTypeError,
+    JAXUnsupportedPrimitiveError,
+)
 
 from .handoff import (
     FlowManifest,
@@ -80,3 +68,46 @@ from .handoff import (
     DSECalibrator,
     CalibrationReport,
 )
+
+__version__ = "0.1.0"
+
+__all__ = [
+    'HLS',
+    'Netlist',
+    'NetlistModule',
+    # Constraints
+    'latency',
+    'LatencyConstraint',
+    'LatencyViolationError',
+    'SemanticValidator',
+    'SemanticViolationError',
+    'EquivalenceChecker',
+    'EquivalenceResult',
+    # JAX frontend
+    'jax_kernel',
+    'JAXArraySpec',
+    'JAXKernelSpec',
+    'JaxprGraph',
+    'JaxprNode',
+    'JaxprVariable',
+    'trace_jax_kernel',
+    'jaxpr_to_ir',
+    'JAXFrontendError',
+    'JAXShapeError',
+    'JAXDTypeError',
+    'JAXUnsupportedPrimitiveError',
+    # GPU-OpenLane Handoff & DSE Calibration
+    'FlowManifest',
+    'DesignSpec',
+    'TechnologySpec',
+    'FlowConfig',
+    'DSEEstimateSpec',
+    'SDCGenerator',
+    'SDCConfig',
+    'OpenLaneRunner',
+    'HandoffResult',
+    'ReportIngestionEngine',
+    'ImplementationReport',
+    'DSECalibrator',
+    'CalibrationReport',
+]
