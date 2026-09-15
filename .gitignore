@@ -14,8 +14,11 @@
 !landing/package.json
 !landing/package-lock.json
 !landing/vercel.json
+!examples/technology_libraries/*.json
 !benchmarks/configs/*.json
 !benchmarks/reports/rtl/*.v
+*.egg-info/
+.pytest_cache/
 *.gv
 *.txt
 *.vcd

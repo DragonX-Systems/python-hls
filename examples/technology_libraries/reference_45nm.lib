@@ -1,0 +1,385 @@
+library (reference_45nm) {
+  technology (cmos);
+  delay_model : table_lookup;
+  time_unit : "1ns";
+  voltage_unit : "1V";
+  current_unit : "1mA";
+  leakage_power_unit : "1nW";
+  pulling_resistance_unit : "1kohm";
+  capacitive_load_unit (1, ff);
+
+  nom_process : 1.0;
+  nom_temperature : 25.0;
+  nom_voltage : 1.10;
+
+  default_operating_conditions : typical;
+
+  operating_conditions (typical) {
+    process : 1.0;
+    voltage : 1.10;
+    temperature : 25.0;
+  }
+
+  operating_conditions (slow) {
+    process : 1.1;
+    voltage : 0.95;
+    temperature : 125.0;
+  }
+
+  /* 1-bit Full Adder */
+  cell (FA_X1) {
+    area : 3.724;
+    cell_leakage_power : 15.4;
+    pin (A) {
+      direction : input;
+      capacitance : 1.2;
+    }
+    pin (B) {
+      direction : input;
+      capacitance : 1.2;
+    }
+    pin (CI) {
+      direction : input;
+      capacitance : 1.1;
+    }
+    pin (S) {
+      direction : output;
+      function : "A ^ B ^ CI";
+      timing () {
+        related_pin : "A";
+        timing_type : combinational;
+        cell_rise (delay_template_3x3) {
+          values ("0.082, 0.095, 0.120", \
+                  "0.091, 0.105, 0.132", \
+                  "0.110, 0.125, 0.155");
+        }
+        cell_fall (delay_template_3x3) {
+          values ("0.078, 0.090, 0.115", \
+                  "0.088, 0.100, 0.128", \
+                  "0.105, 0.120, 0.150");
+        }
+      }
+    }
+    pin (CO) {
+      direction : output;
+      function : "(A & B) | (CI & (A ^ B))";
+      timing () {
+        related_pin : "CI";
+        timing_type : combinational;
+        cell_rise (delay_template_3x3) {
+          values ("0.055, 0.068, 0.085", \
+                  "0.062, 0.075, 0.094", \
+                  "0.075, 0.090, 0.112");
+        }
+        cell_fall (delay_template_3x3) {
+          values ("0.052, 0.064, 0.080", \
+                  "0.058, 0.071, 0.088", \
+                  "0.070, 0.085, 0.106");
+        }
+      }
+    }
+  }
+
+  /* 1-bit Half Adder */
+  cell (HA_X1) {
+    area : 2.394;
+    cell_leakage_power : 9.2;
+    pin (A) {
+      direction : input;
+      capacitance : 1.0;
+    }
+    pin (B) {
+      direction : input;
+      capacitance : 1.0;
+    }
+    pin (S) {
+      direction : output;
+      function : "A ^ B";
+      timing () {
+        related_pin : "A";
+        timing_type : combinational;
+        cell_rise (delay_template_3x3) {
+          values ("0.050, 0.062, 0.078", \
+                  "0.058, 0.070, 0.088", \
+                  "0.072, 0.085, 0.105");
+        }
+        cell_fall (delay_template_3x3) {
+          values ("0.048, 0.060, 0.075", \
+                  "0.055, 0.067, 0.084", \
+                  "0.068, 0.081, 0.100");
+        }
+      }
+    }
+    pin (CO) {
+      direction : output;
+      function : "A & B";
+      timing () {
+        related_pin : "A";
+        timing_type : combinational;
+        cell_rise (delay_template_3x3) {
+          values ("0.040, 0.050, 0.065", \
+                  "0.045, 0.056, 0.072", \
+                  "0.058, 0.070, 0.088");
+        }
+        cell_fall (delay_template_3x3) {
+          values ("0.038, 0.048, 0.062", \
+                  "0.043, 0.053, 0.068", \
+                  "0.055, 0.066, 0.083");
+        }
+      }
+    }
+  }
+
+  /* Positive-edge triggered D Flip-Flop */
+  cell (DFF_X1) {
+    area : 4.256;
+    cell_leakage_power : 18.2;
+    pin (D) {
+      direction : input;
+      capacitance : 0.9;
+      timing () {
+        related_pin : "CK";
+        timing_type : setup_rising;
+        cell_rise (delay_template_3x3) {
+          values ("0.045, 0.052, 0.065", \
+                  "0.048, 0.056, 0.070", \
+                  "0.055, 0.064, 0.080");
+        }
+        cell_fall (delay_template_3x3) {
+          values ("0.042, 0.050, 0.062", \
+                  "0.046, 0.054, 0.068", \
+                  "0.052, 0.061, 0.076");
+        }
+      }
+    }
+    pin (CK) {
+      direction : input;
+      capacitance : 1.5;
+    }
+    pin (Q) {
+      direction : output;
+      timing () {
+        related_pin : "CK";
+        timing_type : rising_edge;
+        cell_rise (delay_template_3x3) {
+          values ("0.085, 0.098, 0.125", \
+                  "0.092, 0.106, 0.135", \
+                  "0.108, 0.124, 0.158");
+        }
+        cell_fall (delay_template_3x3) {
+          values ("0.080, 0.092, 0.118", \
+                  "0.087, 0.100, 0.128", \
+                  "0.102, 0.117, 0.149");
+        }
+      }
+    }
+    pin (QN) {
+      direction : output;
+      function : "!Q";
+      timing () {
+        related_pin : "CK";
+        timing_type : rising_edge;
+        cell_rise (delay_template_3x3) {
+          values ("0.080, 0.092, 0.118", \
+                  "0.087, 0.100, 0.128", \
+                  "0.102, 0.117, 0.149");
+        }
+        cell_fall (delay_template_3x3) {
+          values ("0.085, 0.098, 0.125", \
+                  "0.092, 0.106, 0.135", \
+                  "0.108, 0.124, 0.158");
+        }
+      }
+    }
+  }
+
+  /* 2-to-1 Multiplexer */
+  cell (MUX2_X1) {
+    area : 1.862;
+    cell_leakage_power : 8.1;
+    pin (A) { direction : input; capacitance : 0.8; }
+    pin (B) { direction : input; capacitance : 0.8; }
+    pin (S) { direction : input; capacitance : 1.0; }
+    pin (Z) {
+      direction : output;
+      function : "(A & !S) | (B & S)";
+      timing () {
+        related_pin : "S";
+        timing_type : combinational;
+        cell_rise (delay_template_3x3) {
+          values ("0.048, 0.058, 0.075", \
+                  "0.054, 0.065, 0.084", \
+                  "0.068, 0.080, 0.102");
+        }
+        cell_fall (delay_template_3x3) {
+          values ("0.045, 0.055, 0.070", \
+                  "0.050, 0.061, 0.079", \
+                  "0.063, 0.075, 0.096");
+        }
+      }
+    }
+  }
+
+  /* 2-input XOR */
+  cell (XOR2_X1) {
+    area : 1.596;
+    cell_leakage_power : 6.8;
+    pin (A) { direction : input; capacitance : 0.7; }
+    pin (B) { direction : input; capacitance : 0.7; }
+    pin (Z) {
+      direction : output;
+      function : "A ^ B";
+      timing () {
+        related_pin : "A";
+        timing_type : combinational;
+        cell_rise (delay_template_3x3) {
+          values ("0.042, 0.052, 0.068", \
+                  "0.048, 0.059, 0.076", \
+                  "0.060, 0.072, 0.092");
+        }
+        cell_fall (delay_template_3x3) {
+          values ("0.040, 0.049, 0.064", \
+                  "0.045, 0.055, 0.071", \
+                  "0.056, 0.068, 0.087");
+        }
+      }
+    }
+  }
+
+  /* 2-input XNOR */
+  cell (XNOR2_X1) {
+    area : 1.596;
+    cell_leakage_power : 6.9;
+    pin (A) { direction : input; capacitance : 0.7; }
+    pin (B) { direction : input; capacitance : 0.7; }
+    pin (ZN) {
+      direction : output;
+      function : "!(A ^ B)";
+      timing () {
+        related_pin : "A";
+        timing_type : combinational;
+        cell_rise (delay_template_3x3) {
+          values ("0.044, 0.054, 0.070", \
+                  "0.050, 0.061, 0.078", \
+                  "0.062, 0.075, 0.095");
+        }
+        cell_fall (delay_template_3x3) {
+          values ("0.041, 0.051, 0.066", \
+                  "0.047, 0.057, 0.073", \
+                  "0.058, 0.070, 0.090");
+        }
+      }
+    }
+  }
+
+  /* 2-input AND */
+  cell (AND2_X1) {
+    area : 1.064;
+    cell_leakage_power : 4.5;
+    pin (A) { direction : input; capacitance : 0.6; }
+    pin (B) { direction : input; capacitance : 0.6; }
+    pin (Z) {
+      direction : output;
+      function : "A & B";
+      timing () {
+        related_pin : "A";
+        timing_type : combinational;
+        cell_rise (delay_template_3x3) {
+          values ("0.032, 0.040, 0.052", \
+                  "0.036, 0.045, 0.058", \
+                  "0.046, 0.056, 0.072");
+        }
+        cell_fall (delay_template_3x3) {
+          values ("0.030, 0.038, 0.049", \
+                  "0.034, 0.042, 0.055", \
+                  "0.043, 0.053, 0.068");
+        }
+      }
+    }
+  }
+
+  /* 2-input OR */
+  cell (OR2_X1) {
+    area : 1.064;
+    cell_leakage_power : 4.6;
+    pin (A) { direction : input; capacitance : 0.6; }
+    pin (B) { direction : input; capacitance : 0.6; }
+    pin (Z) {
+      direction : output;
+      function : "A | B";
+      timing () {
+        related_pin : "A";
+        timing_type : combinational;
+        cell_rise (delay_template_3x3) {
+          values ("0.033, 0.041, 0.053", \
+                  "0.037, 0.046, 0.060", \
+                  "0.047, 0.058, 0.074");
+        }
+        cell_fall (delay_template_3x3) {
+          values ("0.031, 0.039, 0.050", \
+                  "0.035, 0.043, 0.056", \
+                  "0.044, 0.054, 0.070");
+        }
+      }
+    }
+  }
+
+  /* 2-input NAND */
+  cell (NAND2_X1) {
+    area : 0.798;
+    cell_leakage_power : 3.2;
+    pin (A) { direction : input; capacitance : 0.5; }
+    pin (B) { direction : input; capacitance : 0.5; }
+    pin (ZN) {
+      direction : output;
+      function : "!(A & B)";
+      timing () {
+        related_pin : "A";
+        timing_type : combinational;
+        cell_rise (delay_template_3x3) {
+          values ("0.024, 0.030, 0.040", \
+                  "0.028, 0.035, 0.045", \
+                  "0.036, 0.044, 0.056");
+        }
+        cell_fall (delay_template_3x3) {
+          values ("0.022, 0.028, 0.038", \
+                  "0.026, 0.032, 0.042", \
+                  "0.033, 0.041, 0.052");
+        }
+      }
+    }
+  }
+
+  /* Inverter */
+  cell (INV_X1) {
+    area : 0.532;
+    cell_leakage_power : 2.1;
+    pin (A) { direction : input; capacitance : 0.4; }
+    pin (ZN) {
+      direction : output;
+      function : "!A";
+      timing () {
+        related_pin : "A";
+        timing_type : combinational;
+        cell_rise (delay_template_3x3) {
+          values ("0.018, 0.024, 0.032", \
+                  "0.021, 0.027, 0.036", \
+                  "0.028, 0.035, 0.045");
+        }
+        cell_fall (delay_template_3x3) {
+          values ("0.016, 0.022, 0.030", \
+                  "0.019, 0.025, 0.033", \
+                  "0.025, 0.032, 0.042");
+        }
+      }
+    }
+  }
+
+  /* Unsupported construct: Level shifter (multi-voltage domain cell) */
+  cell (LEVEL_SHIFTER_X1) {
+    area : 5.320;
+    cell_leakage_power : 25.0;
+    pin (IN) { direction : input; }
+    pin (OUT) { direction : output; }
+  }
+}
