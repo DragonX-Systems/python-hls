@@ -20,5 +20,10 @@
 *.txt
 build/
 *.egg-info/
+
+# Benchmark configs, reports, and emitted RTL are tracked
+!benchmarks/configs/*.json
+!benchmarks/reports/*.json
+!benchmarks/reports/rtl/*.v
 __pycache__/
 .pytest_cache/
