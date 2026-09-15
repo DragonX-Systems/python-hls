@@ -45,7 +45,7 @@ This is a workflow comparison, not a benchmark or a quality-of-results compariso
 
 | Project | Primary source model | Output / downstream flow | Where it is strongest | Key distinction from Python-HLS |
 |---|---|---|---|---|
-| **Python-HLS** | Supported general Python; experimental PyTorch FX graph import | Verilog or VHDL; optional GPU-OpenLane handoff | Inspectable Python-to-IR flow, technology-library-driven DSE, and scheduling/allocation visualization | Experimental; PyTorch import is analysis-only today, and PPA estimates require physical-flow calibration. |
+| **Python-HLS** | Supported general Python; PyTorch FX qualified kernel lowering | Verilog or VHDL; optional GPU-OpenLane handoff | Inspectable Python-to-IR flow, technology-library-driven DSE, PyTorch FX lowering, and scheduling/allocation visualization | Bounded subset of PyTorch kernels; arbitrary model synthesis is out-of-scope, and PPA estimates require physical calibration. |
 | [HeteroCL](https://vast.cs.ucla.edu/software/heterocl) | Python-based hardware DSL | LLVM or C-HLS FPGA backends | Data-centric accelerator design with explicit compute, datatype, and memory customization | A dedicated DSL and accelerator scheduling model rather than a general-Python frontend. |
 | [XLS](https://google.github.io/xls/) | DSLX; experimental C++ frontend | Verilog/SystemVerilog | Strongly typed, hardware-oriented dataflow IR; pipelined functions and concurrent processes | A purpose-built hardware language/IR rather than Python. XLS itself describes the project as experimental. |
 | [LegUp HLS](https://download-soc.microsemi.com/FPGA/HLS-EAP/docs/legup-2021.1-docs/userguide.html) | C/C++ | Verilog for FPGA flows | FPGA-oriented C/C++ HLS, loop pipelining, memory partitioning, and standard interface support | Mature C/C++ workflow; Python-HLS prioritizes Python-originated algorithms and transparent early compiler artifacts. |
@@ -99,6 +99,20 @@ Validate semantics (strict mode: no global state, side effects):
 python -m python_hls.cli validate my_pipeline.py --strict
 ```
 
+Compile a cycle-accounted hardware pipeline with standard interfaces:
+
+```bash
+python -m python_hls.cli compile-pipeline examples/mac.py --ii 1 --depth 3 --interface axis -o mac_axis.v
+```
+
+Co-simulate and verify pipeline throughput, backpressure stalls, and bubbles with Verilator:
+
+```bash
+python -m python_hls.cli verify-pipeline examples/mac.py --ii 1 --depth 3 --interface axis --test-stalls --test-bubbles
+```
+
+See [docs/PIPELINE_AND_INTERFACES.md](docs/PIPELINE_AND_INTERFACES.md) for full architecture, capability matrix, and protocol specifications.
+
 Analyze for different technology nodes:
 
 ```bash
@@ -126,6 +140,11 @@ netlist, logs = hls.compile_numpy(vector_add, output_file="vector_add.v")
 
 See [NUMPY_FRONTEND.md](docs/NUMPY_FRONTEND.md) and [`examples/numpy_vector_add.py`](examples/numpy_vector_add.py) for more details.
 
+Compile a PyTorch model directly to Verilog:
+
+```bash
+python -m python_hls.cli compile-torch examples/pytorch_linear_relu.py --input-shapes "4" -o linear_relu.v
+```
 ### Fast DSE with External Technology Libraries
 
 The `analyze` command compiles a kernel across technology nodes, produces an area/power/latency comparison, and can use supplied resource-characterization numbers instead of relying only on the built-in illustrative models. Compiler decisions and their resulting datapath, schedule, control-flow, and netlist views remain inspectable.
@@ -184,24 +203,47 @@ library = TechLibrary.from_json("examples/technology_libraries/example_45nm.json
 hls = HLS(optimization_level=1, tech_node=45, tech_library=library)
 ```
 
-### PyTorch Graph Import (Experimental)
+### PyTorch FX Qualified Kernel Lowering & RTL Generation
 
-Python-HLS includes an optional PyTorch FX frontend for importing a model into a serializable analysis graph with operation, tensor-shape, and dtype metadata. It is the first step toward ML-workload lowering; it does not yet generate hardware for arbitrary PyTorch models.
+Python-HLS supports qualified lowering of statically bounded PyTorch models via PyTorch FX tracing. Lowerable operations include elementwise arithmetic (`+`, `-`, `*`, `/`), matrix multiplication (`torch.matmul`), linear layers (`nn.Linear`), activations (`nn.ReLU`, `torch.clamp`, `nn.Hardtanh`), and reductions (`torch.sum`, `torch.mean`).
+
+Install with PyTorch ML extras:
 
 ```bash
 pip install -e '.[ml]'
 ```
 
+Compile directly from Python:
+
 ```python
 import torch
-from python_hls.frontend import trace_torch_model
+import torch.nn as nn
+from python_hls.frontend.torch_fx import compile_torch_model
 
-model = torch.nn.Sequential(torch.nn.Linear(4, 2), torch.nn.ReLU())
-graph = trace_torch_model(model, [torch.zeros(1, 4)])
-print(graph.to_dict())
+class TinyMLP(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.fc = nn.Linear(4, 2)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        return self.relu(self.fc(x))
+
+model = TinyMLP().eval()
+x = torch.randn(4)
+
+# Compile PyTorch FX model to Verilog RTL netlist
+netlist, graph = compile_torch_model(model, [x], target="verilog", output_file="mlp.v")
+print(f"Generated modules: {list(netlist.modules.keys())}")
 ```
 
-The current importer recognizes elementwise arithmetic, matrix multiplication, linear layers, and ReLU as candidate operations for later lowering. Quantization, tensor-memory mapping, convolution lowering, control generation, and qualified RTL emission remain future work.
+Or using the CLI:
+
+```bash
+python -m python_hls.cli compile-torch examples/pytorch_linear_relu.py --input-shapes "4" -o linear_relu.v
+```
+
+See [docs/PYTORCH_FX_LOWERING.md](docs/PYTORCH_FX_LOWERING.md) for detailed specifications on supported operators, static shapes, quantization types, memory interfaces, and diagnostic errors.
 
 ### Demo Kernels (Trading Firms)
 
