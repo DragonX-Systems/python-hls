@@ -1,0 +1,31 @@
+{
+  "name": "vwap_orderbook",
+  "domain": "finance",
+  "display_name": "5-Level LOB Micro-Price and VWAP Signal",
+  "description": "Limit order book depth pipeline computing volume-weighted average price and micro-price signals",
+  "entry_function": "vwap_orderbook",
+  "shapes": {
+    "bid_prices": [5],
+    "bid_sizes": [5],
+    "ask_prices": [5],
+    "ask_sizes": [5]
+  },
+  "dtypes": {
+    "bid_prices": "int32 prices in basis points or cents",
+    "bid_sizes": "int32 order quantities",
+    "ask_prices": "int32 prices in basis points or cents",
+    "ask_sizes": "int32 order quantities"
+  },
+  "quantization": "Integer price-time tick representation with basis-point precision",
+  "hardware_assumptions": [
+    "Fixed 5-level market depth snapshot directly streamable over AXI-Stream / FIFO",
+    "Parallel multiply-accumulate trees for notional calculations",
+    "Deterministic divider units for VWAP and micro-price ratios"
+  ],
+  "unsupported_operations": [
+    "Dynamic order book level insertion or sorting trees",
+    "String parsing of FIX/ITCH network packets in synthesized kernel",
+    "Floating point operations"
+  ],
+  "target_frequency_mhz": 1000.0
+}

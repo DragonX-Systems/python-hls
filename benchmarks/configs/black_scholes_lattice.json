@@ -1,0 +1,33 @@
+{
+  "name": "black_scholes_lattice",
+  "domain": "finance",
+  "display_name": "Binomial Option Pricing Lattice (Cox-Ross-Rubinstein)",
+  "description": "4-step binomial tree European option pricing lattice with backwards induction roll-back",
+  "entry_function": "black_scholes_lattice",
+  "shapes": {
+    "s_nodes": [5],
+    "strike": "scalar",
+    "q_up": "scalar",
+    "q_down": "scalar",
+    "discount_denom": "scalar"
+  },
+  "dtypes": {
+    "s_nodes": "int32 asset prices in cents/basis points",
+    "strike": "int32 option strike price",
+    "q_up": "int32 risk-neutral upward transition weight",
+    "q_down": "int32 risk-neutral downward transition weight",
+    "discount_denom": "int32 discount denominator factor"
+  },
+  "quantization": "Basis-point integer fixed-point with scaled probability weights",
+  "hardware_assumptions": [
+    "Fixed 4-step tree structure with static loop bounds",
+    "Sequential or pipelined backwards induction systolic pipeline",
+    "Deterministic ALU and multiplier scheduling without floating point"
+  ],
+  "unsupported_operations": [
+    "American early-exercise boundary dynamic memory checks",
+    "Dynamic time step allocation",
+    "Continuous Black-Scholes erf() or normal distribution CDF integrals in hardware"
+  ],
+  "target_frequency_mhz": 1000.0
+}

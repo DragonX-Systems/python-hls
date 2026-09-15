@@ -1,0 +1,27 @@
+{
+  "name": "zscore_normalize",
+  "domain": "data_science",
+  "display_name": "Feature Standardization (Z-Score Normalization)",
+  "description": "Mean reduction, variance accumulation, integer square root, and standardized feature scaling",
+  "entry_function": "zscore_normalize",
+  "shapes": {
+    "x": [8],
+    "out": [8]
+  },
+  "dtypes": {
+    "x": "int32 raw feature values",
+    "out": "int32 standardized values scaled by 1000"
+  },
+  "quantization": "Scaled integer arithmetic with fixed-point scale factor 1000",
+  "hardware_assumptions": [
+    "Fixed 8-element feature vector",
+    "Hardware divider sharing between variance calculation and Newton-Raphson square root",
+    "Bound loop iterations (6 cycles) for deterministic square root convergence"
+  ],
+  "unsupported_operations": [
+    "Dynamic length arrays",
+    "Float math or math.sqrt import",
+    "Dynamic early termination conditions without fixed upper bounds"
+  ],
+  "target_frequency_mhz": 1000.0
+}
